@@ -87,14 +87,9 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
     const startImport = async () => {
       try {
-        // 1. Get Current User ID
-        setCurrentActionMsg('Fetching user details...');
-        const userProfile = await apiRequest('/me');
-        if (!active || isCancelledRef.current) return;
-
-        // 2. Create the Spotify Playlist
+        // 1. Create the Spotify Playlist
         setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
-        const playlistData = await apiRequest(`/users/${userProfile.id}/playlists`, {
+        const playlistData = await apiRequest('/me/playlists', {
           method: 'POST',
           body: JSON.stringify({
             name: playlistName,
@@ -102,7 +97,6 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
             public: isPublic,
           }),
         });
-
         if (!active || isCancelledRef.current) return;
         setPlaylistUrl(playlistData.external_urls.spotify);
         setStatus('importing');
@@ -114,10 +108,10 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           pendingUrisRef.current = []; // Clear buffer immediately to prevent double adds
 
           setCurrentActionMsg(`Adding ${urisToAdd.length} tracks to your playlist...`);
-          
+
           let success = false;
           while (!success && active && !isCancelledRef.current) {
-            const res = await apiRequest(`/playlists/${playlistIdStr}/tracks`, {
+            const res = await apiRequest(`/playlists/${playlistIdStr}/items`, {
               method: 'POST',
               body: JSON.stringify({ uris: urisToAdd }),
             });
@@ -136,7 +130,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           }
         };
 
-        // 3. Process Tracks sequentially
+        // 2. Process Tracks sequentially
         for (let i = 0; i < tracks.length; i++) {
           if (!active) return;
 
@@ -225,7 +219,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           await new Promise((resolve) => setTimeout(resolve, 150));
         }
 
-        // 4. Final flush for remaining tracks in buffer
+        // 3. Final flush for remaining tracks in buffer
         if (pendingUrisRef.current.length > 0 && !isCancelledRef.current && active) {
           await flushBatchToPlaylist(playlistData.id);
         }
