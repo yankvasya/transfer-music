@@ -39,7 +39,7 @@ export const TrackInput: React.FC<TrackInputProps> = ({ initialText, onNext }) =
             rows={12}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={`Artist 1 - Track Title 1&#10;Artist 2 - Track Title 2&#10;Some Other Song Name`}
+            placeholder={"Artist 1 - Track Title 1\nArtist 2 - Track Title 2\nSome Other Song Name"}
           />
         </div>
 
