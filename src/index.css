@@ -78,7 +78,7 @@ body {
 }
 
 .logo-icon {
-  font-size: 2.5rem;
+  flex-shrink: 0;
   animation: float 4s ease-in-out infinite;
 }
 
