@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ParsedTrack } from '../utils/parser';
+import type { MatchResult, ResumeData } from '../types';
+
+const CONCURRENCY = 5; // parallel searches; keep modest to stay well under Spotify's rate limits
+const PERSIST_EVERY = 20; // tracks between resumable checkpoints
+const VISIBLE_LIMIT = 10;
 
 interface ImporterProgressProps {
   tracks: ParsedTrack[];
@@ -9,18 +14,65 @@ interface ImporterProgressProps {
   apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
   onRestart: () => void;
   onBackToList: () => void;
-  onImportComplete: (entry: { name: string; url: string; matched: number; failed: number; total: number }) => void;
+  historyId: string;
+  resumeFrom?: ResumeData;
+  onSaveProgress: (
+    id: string,
+    summary: { name: string; url: string; matched: number; failed: number; total: number },
+    resumeData: ResumeData
+  ) => void;
+  onImportComplete: (
+    id: string,
+    summary: { name: string; url: string; matched: number; failed: number; total: number }
+  ) => void;
 }
 
-interface MatchResult {
-  track: ParsedTrack;
-  spotifyName?: string;
-  spotifyArtist?: string;
-  uri?: string;
-  url?: string;
-  success: boolean;
-  errorReason?: string;
+interface LogPanelProps {
+  title: string;
+  items: MatchResult[];
+  emptyLabel: string;
+  headerExtra?: React.ReactNode;
+  renderItem: (item: MatchResult, idx: number) => React.ReactNode;
 }
+
+const LogPanel: React.FC<LogPanelProps> = ({ title, items, emptyLabel, headerExtra, renderItem }) => {
+  const [expanded, setExpanded] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const hasMore = items.length > VISIBLE_LIMIT;
+  const visible = expanded ? items : items.slice(0, VISIBLE_LIMIT);
+
+  const scrollToTop = () => listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+
+  return (
+    <div className="log-panel">
+      <div className="log-header-row">
+        <h4>{title} ({items.length})</h4>
+        <div className="log-header-actions">
+          {headerExtra}
+          {expanded && hasMore && (
+            <button type="button" className="btn btn-sm btn-outline" onClick={scrollToTop}>
+              ↑ Top
+            </button>
+          )}
+          {hasMore && (
+            <button type="button" className="btn btn-sm btn-outline" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? 'Collapse' : `Show all ${items.length}`}
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="log-list" ref={listRef}>
+        {visible.map(renderItem)}
+        {items.length === 0 && <div className="empty-log">{emptyLabel}</div>}
+      </div>
+      {expanded && hasMore && (
+        <button type="button" className="btn btn-sm btn-outline log-collapse-bottom" onClick={() => setExpanded(false)}>
+          ↑ Collapse
+        </button>
+      )}
+    </div>
+  );
+};
 
 export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   tracks,
@@ -30,25 +82,30 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   apiRequest,
   onRestart,
   onBackToList,
+  historyId,
+  resumeFrom,
+  onSaveProgress,
   onImportComplete,
 }) => {
   const [status, setStatus] = useState<'creating' | 'importing' | 'paused' | 'completed' | 'failed'>('creating');
   const [progress, setProgress] = useState(0); // 0 to 100
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
-  
-  const [matchedTracks, setMatchedTracks] = useState<MatchResult[]>([]);
-  const [failedTracks, setFailedTracks] = useState<MatchResult[]>([]);
-  
+  const [currentIndex, setCurrentIndex] = useState(resumeFrom?.startIndex ?? 0);
+  const [playlistUrl, setPlaylistUrl] = useState<string | null>(resumeFrom?.playlistUrl ?? null);
+
+  const [matchedTracks, setMatchedTracks] = useState<MatchResult[]>(resumeFrom?.matchedTracks ?? []);
+  const [failedTracks, setFailedTracks] = useState<MatchResult[]>(resumeFrom?.failedTracks ?? []);
+
   const [currentActionMsg, setCurrentActionMsg] = useState('Initializing...');
 
   const isPausedRef = useRef(false);
   const isCancelledRef = useRef(false);
-  
-  // Buffers to batch track additions to Spotify playlist (max 100 tracks per call)
-  const pendingUrisRef = useRef<string[]>([]);
-  const matchedCountRef = useRef(0);
-  const hasReportedCompletionRef = useRef(false);
+
+  // Buffer of matched URIs not yet flushed to the playlist (max 100 per Spotify API call)
+  const pendingUrisRef = useRef<string[]>(resumeFrom?.pendingUris ?? []);
+  // Mirrors of the state above, so async workers always read the latest value without stale closures
+  const matchedTracksRef = useRef<MatchResult[]>(resumeFrom?.matchedTracks ?? []);
+  const failedTracksRef = useRef<MatchResult[]>(resumeFrom?.failedTracks ?? []);
+  const importIdRef = useRef(historyId);
 
   // Toggle pause state
   const handlePauseToggle = () => {
@@ -62,12 +119,12 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     }
   };
 
-  // Stop import early
+  // Stop import early; the in-flight requests wind down on their own (checked below),
+  // and whatever was completed so far stays saved as a resumable "incomplete" entry.
   const handleCancel = () => {
-    if (confirm('Are you sure you want to stop the import process? Any tracks imported so far will remain in your playlist.')) {
+    if (confirm('Are you sure you want to stop the import process? Progress so far will be saved so you can resume later from History.')) {
       isCancelledRef.current = true;
-      setStatus('completed');
-      setCurrentActionMsg('Import stopped by user.');
+      setCurrentActionMsg('Stopping import...');
     }
   };
 
@@ -90,24 +147,54 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   useEffect(() => {
     let active = true;
 
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const waitWhilePaused = async () => {
+      while (isPausedRef.current && active && !isCancelledRef.current) {
+        await sleep(300);
+      }
+    };
+
     const startImport = async () => {
       try {
-        // 1. Create the Spotify Playlist
-        setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
-        const playlistData = await apiRequest('/me/playlists', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: playlistName,
-            description: playlistDesc,
-            public: isPublic,
-          }),
-        });
-        if (!active || isCancelledRef.current) return;
-        setPlaylistUrl(playlistData.external_urls.spotify);
-        setStatus('importing');
+        let playlistId: string;
+        let url: string;
 
-        // Helper to add current batch of tracks to the playlist
-        const flushBatchToPlaylist = async (playlistIdStr: string) => {
+        if (resumeFrom) {
+          playlistId = resumeFrom.playlistId;
+          url = resumeFrom.playlistUrl;
+          setPlaylistUrl(url);
+          setStatus('importing');
+        } else {
+          setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
+          const playlistData = await apiRequest('/me/playlists', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: playlistName,
+              description: playlistDesc,
+              public: isPublic,
+            }),
+          });
+          if (!active || isCancelledRef.current) return;
+          playlistId = playlistData.id;
+          url = playlistData.external_urls.spotify;
+          setPlaylistUrl(url);
+          setStatus('importing');
+        }
+
+        // Tracks the safe-to-resume prefix: index i is only "done" once its search+add
+        // has actually completed, which (under concurrency) isn't the same as "highest
+        // index claimed". Resuming from a contiguous done-prefix means we never silently
+        // skip a track that was merely in-flight when the tab closed.
+        const doneFlags = new Array<boolean>(tracks.length).fill(false);
+        for (let i = 0; i < (resumeFrom?.startIndex ?? 0); i++) doneFlags[i] = true;
+        const computeSafeStartIndex = () => {
+          let i = 0;
+          while (i < doneFlags.length && doneFlags[i]) i++;
+          return i;
+        };
+
+        const flushBatchToPlaylist = async () => {
           if (pendingUrisRef.current.length === 0) return;
           const urisToAdd = [...pendingUrisRef.current];
           pendingUrisRef.current = []; // Clear buffer immediately to prevent double adds
@@ -116,17 +203,20 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
           let success = false;
           while (!success && active && !isCancelledRef.current) {
-            const res = await apiRequest(`/playlists/${playlistIdStr}/items`, {
+            await waitWhilePaused();
+            if (!active || isCancelledRef.current) return;
+
+            const res = await apiRequest(`/playlists/${playlistId}/items`, {
               method: 'POST',
               body: JSON.stringify({ uris: urisToAdd }),
             });
 
             if (res && res.isRateLimited) {
-              // Rate limited, wait and retry
               let waitSec = res.waitSeconds;
               while (waitSec > 0 && active && !isCancelledRef.current) {
+                await waitWhilePaused();
                 setCurrentActionMsg(`Rate limited by Spotify! Retrying in ${waitSec}s...`);
-                await new Promise((resolve) => setTimeout(resolve, 1000));
+                await sleep(1000);
                 waitSec--;
               }
             } else {
@@ -135,48 +225,59 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           }
         };
 
-        // 2. Process Tracks sequentially
-        for (let i = 0; i < tracks.length; i++) {
-          if (!active) return;
+        const persistProgress = () => {
+          onSaveProgress(
+            importIdRef.current,
+            {
+              name: playlistName,
+              url,
+              matched: matchedTracksRef.current.length,
+              failed: failedTracksRef.current.length,
+              total: tracks.length,
+            },
+            {
+              playlistId,
+              playlistUrl: url,
+              playlistDesc,
+              isPublic,
+              tracks,
+              startIndex: computeSafeStartIndex(),
+              matchedTracks: matchedTracksRef.current,
+              failedTracks: failedTracksRef.current,
+              pendingUris: pendingUrisRef.current,
+            }
+          );
+        };
 
-          // Check if cancelled
-          if (isCancelledRef.current) {
-            break;
-          }
+        // If we're resuming with a leftover unflushed batch, get it onto the playlist
+        // before continuing, so it isn't at risk of being lost a second time.
+        if (resumeFrom && pendingUrisRef.current.length > 0) {
+          await flushBatchToPlaylist();
+        }
 
-          // Check if paused
-          while (isPausedRef.current && active && !isCancelledRef.current) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
+        let doneCounter = resumeFrom?.startIndex ?? 0;
+
+        const processTrack = async (track: ParsedTrack, index: number) => {
+          await waitWhilePaused();
           if (!active || isCancelledRef.current) return;
 
-          const track = tracks[i];
-          setCurrentIndex(i);
-          setProgress(Math.round(((i) / tracks.length) * 100));
-          setCurrentActionMsg(`Searching track ${i + 1} of ${tracks.length}: "${track.raw}"...`);
-
-          // Search Spotify for the track
-          let searchResult = null;
+          const query = track.artist ? `artist:${track.artist} track:${track.title}` : track.title;
+          let searchResult: any = null;
           let searchSuccess = false;
 
           while (!searchSuccess && active && !isCancelledRef.current) {
-            // Build search query: artist:Artist track:Title
-            let query = '';
-            if (track.artist) {
-              query = `artist:${track.artist} track:${track.title}`;
-            } else {
-              query = track.title;
-            }
+            await waitWhilePaused();
+            if (!active || isCancelledRef.current) return;
 
             try {
               const res = await apiRequest(`/search?q=${encodeURIComponent(query)}&type=track&limit=1`);
 
               if (res && res.isRateLimited) {
-                // Rate limited, handle wait
                 let waitSec = res.waitSeconds;
                 while (waitSec > 0 && active && !isCancelledRef.current) {
+                  await waitWhilePaused();
                   setCurrentActionMsg(`Rate limited! Waiting ${waitSec}s...`);
-                  await new Promise((resolve) => setTimeout(resolve, 1000));
+                  await sleep(1000);
                   waitSec--;
                 }
               } else {
@@ -192,7 +293,6 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
           if (!active || isCancelledRef.current) return;
 
-          // Process Search Result
           const spotifyTrack = searchResult?.tracks?.items?.[0];
           if (spotifyTrack) {
             const result: MatchResult = {
@@ -203,38 +303,76 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               url: spotifyTrack.external_urls.spotify,
               success: true,
             };
-            setMatchedTracks((prev) => [result, ...prev]);
+            matchedTracksRef.current = [result, ...matchedTracksRef.current];
+            setMatchedTracks(matchedTracksRef.current);
             pendingUrisRef.current.push(spotifyTrack.uri);
-            matchedCountRef.current++;
           } else {
             const result: MatchResult = {
               track,
               success: false,
               errorReason: 'Track not found on Spotify',
             };
-            setFailedTracks((prev) => [result, ...prev]);
+            failedTracksRef.current = [result, ...failedTracksRef.current];
+            setFailedTracks(failedTracksRef.current);
           }
+
+          doneFlags[index] = true;
 
           // If buffer has 100 items, flush to Spotify playlist to stay under limits
           if (pendingUrisRef.current.length >= 100) {
-            await flushBatchToPlaylist(playlistData.id);
+            await flushBatchToPlaylist();
           }
 
-          // Throttling delay to avoid aggressive rate limits (approx 150ms)
-          await new Promise((resolve) => setTimeout(resolve, 150));
+          doneCounter++;
+          setCurrentIndex(doneCounter);
+          setProgress(Math.round((doneCounter / tracks.length) * 100));
+          setCurrentActionMsg(`Searching tracks... (${doneCounter} / ${tracks.length} processed)`);
+
+          if (doneCounter % PERSIST_EVERY === 0) {
+            persistProgress();
+          }
+        };
+
+        // Concurrent worker pool: each worker claims the next unprocessed index and
+        // works through it, so several searches are in flight at once instead of one at a time.
+        let cursor = resumeFrom?.startIndex ?? 0;
+        const worker = async () => {
+          while (true) {
+            if (!active || isCancelledRef.current) return;
+            await waitWhilePaused();
+            if (!active || isCancelledRef.current || cursor >= tracks.length) return;
+            const index = cursor++;
+            await processTrack(tracks[index], index);
+          }
+        };
+
+        await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+
+        if (!active) return;
+
+        // Final flush for remaining tracks in buffer
+        if (pendingUrisRef.current.length > 0) {
+          await flushBatchToPlaylist();
         }
 
-        // 3. Final flush for remaining tracks in buffer
-        if (pendingUrisRef.current.length > 0 && !isCancelledRef.current && active) {
-          await flushBatchToPlaylist(playlistData.id);
-        }
+        if (!active) return;
 
-        // Finish Import
-        if (active) {
+        if (isCancelledRef.current) {
+          persistProgress();
+          setStatus('completed');
+          setCurrentActionMsg('Import stopped. Resume it anytime from History.');
+        } else {
           setProgress(100);
           setCurrentIndex(tracks.length);
           setStatus('completed');
           setCurrentActionMsg('Playlist import completed successfully!');
+          onImportComplete(importIdRef.current, {
+            name: playlistName,
+            url,
+            matched: matchedTracksRef.current.length,
+            failed: failedTracksRef.current.length,
+            total: tracks.length,
+          });
         }
       } catch (err: any) {
         console.error('Import failed with critical error:', err);
@@ -250,21 +388,8 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     return () => {
       active = false;
     };
-  }, [tracks, playlistName, playlistDesc, isPublic, apiRequest]);
-
-  // Record completed imports to history once, after the playlist actually exists
-  useEffect(() => {
-    if (status === 'completed' && playlistUrl && !hasReportedCompletionRef.current) {
-      hasReportedCompletionRef.current = true;
-      onImportComplete({
-        name: playlistName,
-        url: playlistUrl,
-        matched: matchedTracks.length,
-        failed: failedTracks.length,
-        total: tracks.length,
-      });
-    }
-  }, [status, playlistUrl, playlistName, matchedTracks.length, failedTracks.length, tracks.length, onImportComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks, playlistName, playlistDesc, isPublic, apiRequest, historyId]);
 
   return (
     <div className="importer-progress-panel glass-panel">
@@ -334,41 +459,39 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
       {/* Output Lists */}
       <div className="log-container">
-        <div className="log-panel">
-          <h4>Matched ({matchedTracks.length})</h4>
-          <div className="log-list">
-            {matchedTracks.map((item, idx) => (
-              <div key={idx} className="log-item success">
-                <span className="log-item-raw">{item.track.raw}</span>
-                <span className="arrow">➔</span>
-                <a href={item.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
-                  {item.spotifyArtist} - {item.spotifyName}
-                </a>
-              </div>
-            ))}
-            {matchedTracks.length === 0 && <div className="empty-log">No tracks matched yet...</div>}
-          </div>
-        </div>
+        <LogPanel
+          title="Matched"
+          items={matchedTracks}
+          emptyLabel="No tracks matched yet..."
+          renderItem={(item, idx) => (
+            <div key={idx} className="log-item success">
+              <span className="log-item-raw">{item.track.raw}</span>
+              <span className="arrow">➔</span>
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
+                {item.spotifyArtist} - {item.spotifyName}
+              </a>
+            </div>
+          )}
+        />
 
-        <div className="log-panel">
-          <div className="log-header-row">
-            <h4>Not Found ({failedTracks.length})</h4>
-            {failedTracks.length > 0 && (
+        <LogPanel
+          title="Not Found"
+          items={failedTracks}
+          emptyLabel="No missed tracks..."
+          headerExtra={
+            failedTracks.length > 0 ? (
               <button className="btn btn-sm btn-outline-danger" onClick={downloadFailedTracks}>
                 ⬇ Download List
               </button>
-            )}
-          </div>
-          <div className="log-list">
-            {failedTracks.map((item, idx) => (
-              <div key={idx} className="log-item danger">
-                <span className="log-item-raw">{item.track.raw}</span>
-                <span className="log-item-error">({item.errorReason})</span>
-              </div>
-            ))}
-            {failedTracks.length === 0 && <div className="empty-log">No missed tracks...</div>}
-          </div>
-        </div>
+            ) : undefined
+          }
+          renderItem={(item, idx) => (
+            <div key={idx} className="log-item danger">
+              <span className="log-item-raw">{item.track.raw}</span>
+              <span className="log-item-error">({item.errorReason})</span>
+            </div>
+          )}
+        />
       </div>
     </div>
   );

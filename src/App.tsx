@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useSpotify } from './hooks/useSpotify';
 import { useHistory } from './hooks/useHistory';
+import type { HistoryEntry } from './hooks/useHistory';
 import { Header } from './components/Header';
 import { ClientIdSetup } from './components/ClientIdSetup';
 import { LoginButton } from './components/LoginButton';
@@ -9,6 +10,7 @@ import { PlaylistSetup } from './components/PlaylistSetup';
 import { ImporterProgress } from './components/ImporterProgress';
 import { HistoryView } from './components/HistoryView';
 import type { ParsedTrack } from './utils/parser';
+import type { ResumeData } from './types';
 
 type Step = 'input' | 'playlist' | 'progress' | 'history';
 
@@ -24,7 +26,7 @@ function App() {
     apiRequest,
   } = useSpotify();
 
-  const { history, addEntry } = useHistory();
+  const { history, saveProgress, completeEntry, removeEntry } = useHistory();
 
   // Wizard state
   const [step, setStep] = useState<Step>('input');
@@ -38,6 +40,8 @@ function App() {
     description: string;
     isPublic: boolean;
   } | null>(null);
+  // Identifies the history entry a running import checkpoints into, and (when resuming) what to pick up from.
+  const [activeImport, setActiveImport] = useState<{ id: string; resumeFrom?: ResumeData } | null>(null);
 
   const handleTracksNext = (parsedTracks: ParsedTrack[], text: string) => {
     setTracks(parsedTracks);
@@ -47,6 +51,7 @@ function App() {
 
   const handlePlaylistStart = (name: string, description: string, isPublic: boolean) => {
     setPlaylistConfig({ name, description, isPublic });
+    setActiveImport({ id: crypto.randomUUID() });
     setStep('progress');
   };
 
@@ -54,6 +59,7 @@ function App() {
     setRawText('');
     setTracks([]);
     setPlaylistConfig(null);
+    setActiveImport(null);
     setStep('input');
   };
 
@@ -69,6 +75,18 @@ function App() {
 
   const handleHistoryBack = () => {
     setStep(previousStepRef.current);
+  };
+
+  const handleResumeImport = (entry: HistoryEntry) => {
+    if (!entry.resumeData) return;
+    setTracks(entry.resumeData.tracks);
+    setPlaylistConfig({
+      name: entry.name,
+      description: entry.resumeData.playlistDesc,
+      isPublic: entry.resumeData.isPublic,
+    });
+    setActiveImport({ id: entry.id, resumeFrom: entry.resumeData });
+    setStep('progress');
   };
 
   const getRedirectUri = () => {
@@ -118,7 +136,7 @@ function App() {
             />
           )}
 
-          {step === 'progress' && playlistConfig && (
+          {step === 'progress' && playlistConfig && activeImport && (
             <ImporterProgress
               tracks={tracks}
               playlistName={playlistConfig.name}
@@ -127,12 +145,20 @@ function App() {
               apiRequest={apiRequest}
               onRestart={handleRestart}
               onBackToList={handleBackToList}
-              onImportComplete={addEntry}
+              historyId={activeImport.id}
+              resumeFrom={activeImport.resumeFrom}
+              onSaveProgress={saveProgress}
+              onImportComplete={completeEntry}
             />
           )}
 
           {step === 'history' && (
-            <HistoryView history={history} onBack={handleHistoryBack} />
+            <HistoryView
+              history={history}
+              onBack={handleHistoryBack}
+              onResume={handleResumeImport}
+              onDelete={removeEntry}
+            />
           )}
         </main>
       )}

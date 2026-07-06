@@ -531,7 +531,7 @@ textarea.form-control {
 /* Logs and lists */
 .log-container {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.5rem;
   margin-top: 2.5rem;
   height: 350px;
@@ -540,6 +540,7 @@ textarea.form-control {
 .log-panel {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   background: rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
   border-radius: 10px;
@@ -558,21 +559,36 @@ textarea.form-control {
   margin-bottom: 0;
 }
 
+.log-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.log-collapse-bottom {
+  margin-top: 0.75rem;
+  align-self: center;
+}
+
 .log-list {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   font-size: 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   padding-right: 0.5rem;
+  position: relative;
 }
 
 .log-item {
+  min-width: 0;
   padding: 0.6rem 0.8rem;
   border-radius: 6px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.5rem;
 }
@@ -589,15 +605,23 @@ textarea.form-control {
 }
 
 .log-item-raw {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 500;
   color: var(--text-primary);
 }
 
 .arrow {
+  flex-shrink: 0;
   color: var(--text-secondary);
 }
 
 .log-item-spotify {
+  min-width: 0;
+  flex: 1 1 auto;
   color: var(--accent-color-hover);
   text-decoration: none;
   font-weight: 500;
@@ -611,6 +635,7 @@ textarea.form-control {
 }
 
 .log-item-error {
+  flex-shrink: 0;
   color: #f87171;
   font-size: 0.8rem;
 }
@@ -650,6 +675,23 @@ textarea.form-control {
 
 .history-item {
   justify-content: space-between;
+}
+
+.history-item-info {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.history-item-info .log-item-raw {
+  white-space: normal;
+}
+
+.history-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .duplicate-warning {
