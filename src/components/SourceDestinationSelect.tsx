@@ -1,5 +1,14 @@
 import React from 'react';
 
+interface ConnectorOption {
+  id: string;
+  icon: string;
+  label: string;
+}
+
+const SOURCES: ConnectorOption[] = [{ id: 'plain-text', icon: '📋', label: 'Plain Text' }];
+const DESTINATIONS: ConnectorOption[] = [{ id: 'spotify', icon: '🎧', label: 'Spotify' }];
+
 interface SourceDestinationSelectProps {
   onContinue: () => void;
 }
@@ -13,18 +22,32 @@ export const SourceDestinationSelect: React.FC<SourceDestinationSelectProps> = (
         are planned — for now only this pair is available.
       </p>
 
-      <div className="form-group">
-        <label htmlFor="sourceSelect">From</label>
-        <select id="sourceSelect" className="form-control" value="plain-text" disabled>
-          <option value="plain-text">📋 Plain Text List</option>
-        </select>
-      </div>
+      <div className="connector-picker">
+        <div className="connector-column">
+          <h4>From</h4>
+          <div className="connector-grid">
+            {SOURCES.map((source) => (
+              <div key={source.id} className="connector-tile active">
+                <span className="connector-tile-icon">{source.icon}</span>
+                <span className="connector-tile-label">{source.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      <div className="form-group">
-        <label htmlFor="destinationSelect">To</label>
-        <select id="destinationSelect" className="form-control" value="spotify" disabled>
-          <option value="spotify">🎧 Spotify</option>
-        </select>
+        <div className="connector-arrow">→</div>
+
+        <div className="connector-column">
+          <h4>To</h4>
+          <div className="connector-grid">
+            {DESTINATIONS.map((destination) => (
+              <div key={destination.id} className="connector-tile active">
+                <span className="connector-tile-icon">{destination.icon}</span>
+                <span className="connector-tile-label">{destination.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="form-actions right-align">
