@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useSpotify } from './hooks/useSpotify';
+import { useHistory } from './hooks/useHistory';
 import { Header } from './components/Header';
 import { ClientIdSetup } from './components/ClientIdSetup';
 import { LoginButton } from './components/LoginButton';
 import { TrackInput } from './components/TrackInput';
 import { PlaylistSetup } from './components/PlaylistSetup';
 import { ImporterProgress } from './components/ImporterProgress';
+import { HistoryView } from './components/HistoryView';
 import type { ParsedTrack } from './utils/parser';
 
-type Step = 'input' | 'playlist' | 'progress';
+type Step = 'input' | 'playlist' | 'progress' | 'history';
 
 function App() {
   const {
@@ -22,9 +24,12 @@ function App() {
     apiRequest,
   } = useSpotify();
 
+  const { history, addEntry } = useHistory();
+
   // Wizard state
   const [step, setStep] = useState<Step>('input');
-  
+  const previousStepRef = useRef<Step>('input');
+
   // Importer data state
   const [rawText, setRawText] = useState<string>('');
   const [tracks, setTracks] = useState<ParsedTrack[]>([]);
@@ -52,6 +57,20 @@ function App() {
     setStep('input');
   };
 
+  // Returns to the tracklist step without discarding what was already entered/imported.
+  const handleBackToList = () => {
+    setStep('input');
+  };
+
+  const handleShowHistory = () => {
+    previousStepRef.current = step;
+    setStep('history');
+  };
+
+  const handleHistoryBack = () => {
+    setStep(previousStepRef.current);
+  };
+
   const getRedirectUri = () => {
     const envUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
     if (envUri) return envUri;
@@ -60,7 +79,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <Header user={user} onLogout={logout} />
+      <Header user={user} onLogout={logout} onShowHistory={handleShowHistory} />
 
       {/* Loading state */}
       {isLoading && (
@@ -93,6 +112,7 @@ function App() {
           {step === 'playlist' && (
             <PlaylistSetup
               trackCount={tracks.length}
+              apiRequest={apiRequest}
               onBack={() => setStep('input')}
               onStart={handlePlaylistStart}
             />
@@ -106,7 +126,13 @@ function App() {
               isPublic={playlistConfig.isPublic}
               apiRequest={apiRequest}
               onRestart={handleRestart}
+              onBackToList={handleBackToList}
+              onImportComplete={addEntry}
             />
+          )}
+
+          {step === 'history' && (
+            <HistoryView history={history} onBack={handleHistoryBack} />
           )}
         </main>
       )}

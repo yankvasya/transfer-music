@@ -1,20 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface PlaylistSetupProps {
   trackCount: number;
+  apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
   onBack: () => void;
   onStart: (name: string, description: string, isPublic: boolean) => void;
 }
 
 export const PlaylistSetup: React.FC<PlaylistSetupProps> = ({
   trackCount,
+  apiRequest,
   onBack,
   onStart,
 }) => {
   const defaultName = `Imported Playlist (${new Date().toLocaleDateString()})`;
   const [name, setName] = useState(defaultName);
-  const [description, setDescription] = useState('Imported via TransferMusic');
+  const [description, setDescription] = useState('Imported via TransferMusic (github.com/yankvasya/transfer-music)');
   const [isPublic, setIsPublic] = useState(false);
+  const [existingNames, setExistingNames] = useState<Set<string>>(new Set());
+
+  // Best-effort check for existing playlist names, so users can spot accidental duplicates.
+  // Spotify itself allows duplicate names, so this only ever warns, never blocks.
+  useEffect(() => {
+    let active = true;
+
+    const loadExistingNames = async () => {
+      const names = new Set<string>();
+      let endpoint: string | null = '/me/playlists?limit=50';
+      let pages = 0;
+
+      while (endpoint && pages < 10) {
+        try {
+          const data = await apiRequest(endpoint);
+          for (const playlist of data.items || []) {
+            names.add(playlist.name.toLowerCase());
+          }
+          endpoint = data.next;
+        } catch {
+          break;
+        }
+        pages++;
+      }
+
+      if (active) setExistingNames(names);
+    };
+
+    loadExistingNames();
+    return () => {
+      active = false;
+    };
+  }, [apiRequest]);
+
+  const isDuplicateName = existingNames.has(name.trim().toLowerCase());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +79,12 @@ export const PlaylistSetup: React.FC<PlaylistSetupProps> = ({
             placeholder="E.g., My Favorite Songs"
             required
           />
+          {isDuplicateName && (
+            <p className="duplicate-warning">
+              ⚠ You already have a playlist named "{name.trim()}". Spotify allows duplicate names, so a new,
+              separate playlist will be created — rename it above if that's not what you want.
+            </p>
+          )}
         </div>
 
         <div className="form-group">
