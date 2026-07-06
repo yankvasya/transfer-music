@@ -75,6 +75,16 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.header-brand:hover .logo-text h1 {
+  text-decoration: underline;
 }
 
 .logo-icon {

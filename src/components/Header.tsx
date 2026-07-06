@@ -4,12 +4,13 @@ interface HeaderProps {
   user: { display_name: string; images: { url: string }[] } | null;
   onLogout: () => void;
   onShowHistory: () => void;
+  onGoHome: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout, onShowHistory }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onLogout, onShowHistory, onGoHome }) => {
   return (
     <header className="app-header">
-      <div className="header-brand">
+      <button type="button" className="header-brand" onClick={onGoHome}>
         <svg className="logo-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
           <path d="M8 12H24" stroke="var(--accent-color)" strokeWidth="3" strokeLinecap="round" />
           <path d="M19 7L24 12L19 17" stroke="var(--accent-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -18,10 +19,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onShowHistory })
         </svg>
         <div className="logo-text">
           <h1>TransferMusic</h1>
-          <p className="subtitle">Import your plaintext tracklists directly into Spotify</p>
+          <p className="subtitle">Move your tracklists into Spotify — more services coming soon</p>
         </div>
-      </div>
-      
+      </button>
+
       {user && (
         <div className="user-profile">
           {user.images?.[0]?.url ? (

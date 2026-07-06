@@ -1,18 +1,18 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useSpotify } from './hooks/useSpotify';
 import { useHistory } from './hooks/useHistory';
 import type { HistoryEntry } from './hooks/useHistory';
 import { Header } from './components/Header';
 import { ClientIdSetup } from './components/ClientIdSetup';
 import { LoginButton } from './components/LoginButton';
+import { SourceDestinationSelect } from './components/SourceDestinationSelect';
 import { TrackInput } from './components/TrackInput';
 import { PlaylistSetup } from './components/PlaylistSetup';
-import { ImporterProgress } from './components/ImporterProgress';
+import { ProgressRoute } from './components/ProgressRoute';
 import { HistoryView } from './components/HistoryView';
 import type { ParsedTrack } from './utils/parser';
 import type { ResumeData } from './types';
-
-type Step = 'input' | 'playlist' | 'progress' | 'history';
 
 function App() {
   const {
@@ -27,12 +27,9 @@ function App() {
   } = useSpotify();
 
   const { history, saveProgress, completeEntry, removeEntry } = useHistory();
+  const navigate = useNavigate();
 
-  // Wizard state
-  const [step, setStep] = useState<Step>('input');
-  const previousStepRef = useRef<Step>('input');
-
-  // Importer data state
+  // Importer data state (in-memory; /progress/:id survives a reload via History instead)
   const [rawText, setRawText] = useState<string>('');
   const [tracks, setTracks] = useState<ParsedTrack[]>([]);
   const [playlistConfig, setPlaylistConfig] = useState<{
@@ -46,13 +43,14 @@ function App() {
   const handleTracksNext = (parsedTracks: ParsedTrack[], text: string) => {
     setTracks(parsedTracks);
     setRawText(text);
-    setStep('playlist');
+    navigate('/playlist');
   };
 
   const handlePlaylistStart = (name: string, description: string, isPublic: boolean) => {
+    const id = crypto.randomUUID();
     setPlaylistConfig({ name, description, isPublic });
-    setActiveImport({ id: crypto.randomUUID() });
-    setStep('progress');
+    setActiveImport({ id });
+    navigate(`/progress/${id}`);
   };
 
   const handleRestart = () => {
@@ -60,22 +58,13 @@ function App() {
     setTracks([]);
     setPlaylistConfig(null);
     setActiveImport(null);
-    setStep('input');
+    navigate('/import');
   };
 
   // Returns to the tracklist step without discarding what was already entered/imported.
-  const handleBackToList = () => {
-    setStep('input');
-  };
+  const handleBackToList = () => navigate('/import');
 
-  const handleShowHistory = () => {
-    previousStepRef.current = step;
-    setStep('history');
-  };
-
-  const handleHistoryBack = () => {
-    setStep(previousStepRef.current);
-  };
+  const handleGoHome = () => navigate('/');
 
   const handleResumeImport = (entry: HistoryEntry) => {
     if (!entry.resumeData) return;
@@ -86,7 +75,7 @@ function App() {
       isPublic: entry.resumeData.isPublic,
     });
     setActiveImport({ id: entry.id, resumeFrom: entry.resumeData });
-    setStep('progress');
+    navigate(`/progress/${entry.id}`);
   };
 
   const getRedirectUri = () => {
@@ -97,7 +86,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <Header user={user} onLogout={logout} onShowHistory={handleShowHistory} />
+      <Header user={user} onLogout={logout} onShowHistory={() => navigate('/history')} onGoHome={handleGoHome} />
 
       {/* Loading state */}
       {isLoading && (
@@ -123,43 +112,58 @@ function App() {
       {/* Importer Steps */}
       {!isLoading && isAuthenticated && (
         <main>
-          {step === 'input' && (
-            <TrackInput initialText={rawText} onNext={handleTracksNext} />
-          )}
-          
-          {step === 'playlist' && (
-            <PlaylistSetup
-              trackCount={tracks.length}
-              apiRequest={apiRequest}
-              onBack={() => setStep('input')}
-              onStart={handlePlaylistStart}
-            />
-          )}
+          <Routes>
+            <Route path="/" element={<SourceDestinationSelect onContinue={() => navigate('/import')} />} />
 
-          {step === 'progress' && playlistConfig && activeImport && (
-            <ImporterProgress
-              tracks={tracks}
-              playlistName={playlistConfig.name}
-              playlistDesc={playlistConfig.description}
-              isPublic={playlistConfig.isPublic}
-              apiRequest={apiRequest}
-              onRestart={handleRestart}
-              onBackToList={handleBackToList}
-              historyId={activeImport.id}
-              resumeFrom={activeImport.resumeFrom}
-              onSaveProgress={saveProgress}
-              onImportComplete={completeEntry}
-            />
-          )}
+            <Route path="/import" element={<TrackInput initialText={rawText} onNext={handleTracksNext} />} />
 
-          {step === 'history' && (
-            <HistoryView
-              history={history}
-              onBack={handleHistoryBack}
-              onResume={handleResumeImport}
-              onDelete={removeEntry}
+            <Route
+              path="/playlist"
+              element={
+                tracks.length === 0 ? (
+                  <Navigate to="/import" replace />
+                ) : (
+                  <PlaylistSetup
+                    trackCount={tracks.length}
+                    apiRequest={apiRequest}
+                    onBack={() => navigate('/import')}
+                    onStart={handlePlaylistStart}
+                  />
+                )
+              }
             />
-          )}
+
+            <Route
+              path="/progress/:id"
+              element={
+                <ProgressRoute
+                  activeImport={activeImport}
+                  tracks={tracks}
+                  playlistConfig={playlistConfig}
+                  history={history}
+                  apiRequest={apiRequest}
+                  onRestart={handleRestart}
+                  onBackToList={handleBackToList}
+                  onSaveProgress={saveProgress}
+                  onImportComplete={completeEntry}
+                />
+              }
+            />
+
+            <Route
+              path="/history"
+              element={
+                <HistoryView
+                  history={history}
+                  onBack={() => navigate('/')}
+                  onResume={handleResumeImport}
+                  onDelete={removeEntry}
+                />
+              }
+            />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
       )}
     </div>
