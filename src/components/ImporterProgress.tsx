@@ -5,6 +5,11 @@ import type { MatchResult, ResumeData } from '../types';
 const CONCURRENCY = 5; // parallel searches; keep modest to stay well under Spotify's rate limits
 const PERSIST_EVERY = 20; // tracks between resumable checkpoints
 const VISIBLE_LIMIT = 10;
+// Spotify's own Retry-After is honored every time, but real-world Development Mode
+// lockouts have been reported lasting minutes to hours, not seconds — so after this many
+// rate-limited responses in a row (across all concurrent workers), stop instead of
+// hammering an API that has already told us "no" repeatedly.
+const MAX_CONSECUTIVE_RATE_LIMITS = 15;
 
 interface ImporterProgressProps {
   tracks: ParsedTrack[];
@@ -99,6 +104,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
   const isPausedRef = useRef(false);
   const isCancelledRef = useRef(false);
+  const stopReasonRef = useRef<'user' | 'rate_limit' | null>(null);
 
   // Buffer of matched URIs not yet flushed to the playlist (max 100 per Spotify API call)
   const pendingUrisRef = useRef<string[]>(resumeFrom?.pendingUris ?? []);
@@ -123,6 +129,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   // and whatever was completed so far stays saved as a resumable "incomplete" entry.
   const handleCancel = () => {
     if (confirm('Are you sure you want to stop the import process? Progress so far will be saved so you can resume later from History.')) {
+      stopReasonRef.current = 'user';
       isCancelledRef.current = true;
       setCurrentActionMsg('Stopping import...');
     }
@@ -194,6 +201,23 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           return i;
         };
 
+        // Shared across all concurrent workers: how many rate-limited responses have come
+        // back in a row (reset on any successful request). Once it crosses the threshold,
+        // we give up rather than keep waiting out an already-lengthy lockout.
+        let rateLimitStreak = 0;
+        const registerRateLimit = () => {
+          rateLimitStreak++;
+          if (rateLimitStreak > MAX_CONSECUTIVE_RATE_LIMITS) {
+            stopReasonRef.current = 'rate_limit';
+            isCancelledRef.current = true;
+            return true;
+          }
+          return false;
+        };
+        const registerSuccess = () => {
+          rateLimitStreak = 0;
+        };
+
         const flushBatchToPlaylist = async () => {
           if (pendingUrisRef.current.length === 0) return;
           const urisToAdd = [...pendingUrisRef.current];
@@ -204,7 +228,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           let success = false;
           while (!success && active && !isCancelledRef.current) {
             await waitWhilePaused();
-            if (!active || isCancelledRef.current) return;
+            if (!active || isCancelledRef.current) break;
 
             const res = await apiRequest(`/playlists/${playlistId}/items`, {
               method: 'POST',
@@ -212,6 +236,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
             });
 
             if (res && res.isRateLimited) {
+              if (registerRateLimit()) break;
               let waitSec = res.waitSeconds;
               while (waitSec > 0 && active && !isCancelledRef.current) {
                 await waitWhilePaused();
@@ -220,8 +245,15 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
                 waitSec--;
               }
             } else {
+              registerSuccess();
               success = true;
             }
+          }
+
+          if (!success) {
+            // Couldn't add this batch (cancelled/rate-limited out) — put it back so it
+            // isn't silently lost; it'll be retried on the next flush or on resume.
+            pendingUrisRef.current = [...urisToAdd, ...pendingUrisRef.current];
           }
         };
 
@@ -255,6 +287,12 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           await flushBatchToPlaylist();
         }
 
+        // Checkpoint immediately so even an interruption in the first few seconds
+        // (before the first periodic save) leaves something resumable in History.
+        if (!resumeFrom) {
+          persistProgress();
+        }
+
         let doneCounter = resumeFrom?.startIndex ?? 0;
 
         const processTrack = async (track: ParsedTrack, index: number) => {
@@ -273,6 +311,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               const res = await apiRequest(`/search?q=${encodeURIComponent(query)}&type=track&limit=1`);
 
               if (res && res.isRateLimited) {
+                if (registerRateLimit()) break;
                 let waitSec = res.waitSeconds;
                 while (waitSec > 0 && active && !isCancelledRef.current) {
                   await waitWhilePaused();
@@ -281,6 +320,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
                   waitSec--;
                 }
               } else {
+                registerSuccess();
                 searchResult = res;
                 searchSuccess = true;
               }
@@ -360,7 +400,11 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         if (isCancelledRef.current) {
           persistProgress();
           setStatus('completed');
-          setCurrentActionMsg('Import stopped. Resume it anytime from History.');
+          setCurrentActionMsg(
+            stopReasonRef.current === 'rate_limit'
+              ? "Stopped: Spotify kept rate-limiting this app even after waiting it out. Development-mode lockouts have been reported lasting anywhere from minutes to several hours, so retrying immediately won't help — your progress is saved, resume from History once it clears."
+              : 'Import stopped. Resume it anytime from History.'
+          );
         } else {
           setProgress(100);
           setCurrentIndex(tracks.length);
