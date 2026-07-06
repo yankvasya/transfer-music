@@ -710,6 +710,85 @@ textarea.form-control {
   color: var(--warning-color);
 }
 
+/* Source/Destination connector picker */
+.connector-picker {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.connector-column {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.connector-column h4 {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
+
+.connector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.connector-tile {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.connector-tile.active {
+  border-color: var(--accent-color);
+  background: rgba(29, 185, 84, 0.1);
+  box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.connector-tile-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.connector-tile-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.connector-arrow {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 1.4rem;
+  color: var(--text-secondary);
+  margin-top: 1.75rem;
+}
+
+@media (max-width: 768px) {
+  .connector-picker {
+    flex-direction: column;
+  }
+
+  .connector-arrow {
+    align-self: center;
+    margin-top: 0;
+    transform: rotate(90deg);
+  }
+}
+
 .mt-4 {
   margin-top: 1.5rem;
 }
