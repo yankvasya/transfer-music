@@ -4,9 +4,11 @@ import type { HistoryEntry } from '../hooks/useHistory';
 interface HistoryViewProps {
   history: HistoryEntry[];
   onBack: () => void;
+  onResume: (entry: HistoryEntry) => void;
+  onDelete: (id: string) => void;
 }
 
-export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack }) => {
+export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onResume, onDelete }) => {
   return (
     <div className="history-panel glass-panel">
       <h2>🕘 Import History</h2>
@@ -20,16 +22,32 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack }) => 
         <div className="log-list history-list">
           {history.map((entry) => (
             <div key={entry.id} className="log-item history-item">
-              <div>
-                <div className="log-item-raw">{entry.name}</div>
+              <div className="history-item-info">
+                <div className="log-item-raw">
+                  {entry.name}
+                  {entry.status === 'incomplete' && (
+                    <span className="badge badge-warning">Incomplete</span>
+                  )}
+                </div>
                 <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
-                  {new Date(entry.createdAt).toLocaleString()} · {entry.matched} matched
+                  {new Date(entry.createdAt).toLocaleString()} · {entry.matched}/{entry.total} matched
                   {entry.failed > 0 ? `, ${entry.failed} not found` : ''}
                 </div>
               </div>
-              <a href={entry.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
-                Open in Spotify
-              </a>
+              <div className="history-item-actions">
+                {entry.status === 'incomplete' ? (
+                  <button className="btn btn-sm btn-outline-success" onClick={() => onResume(entry)}>
+                    ▶ Resume
+                  </button>
+                ) : (
+                  <a href={entry.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
+                    Open in Spotify
+                  </a>
+                )}
+                <button className="btn btn-sm btn-outline-danger" onClick={() => onDelete(entry.id)}>
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
         </div>

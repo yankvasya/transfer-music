@@ -135,7 +135,7 @@ export function useSpotify() {
     const redirectUri = getRedirectUri();
     
     // Scopes needed for profile and playlist modifications
-    const scope = 'playlist-modify-public playlist-modify-private user-read-private';
+    const scope = 'playlist-modify-public playlist-modify-private playlist-read-private user-read-private';
     
     const params = new URLSearchParams({
       client_id: clientId,
