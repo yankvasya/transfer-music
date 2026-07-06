@@ -3,9 +3,10 @@ import React from 'react';
 interface HeaderProps {
   user: { display_name: string; images: { url: string }[] } | null;
   onLogout: () => void;
+  onShowHistory: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onLogout, onShowHistory }) => {
   return (
     <header className="app-header">
       <div className="header-brand">
@@ -31,6 +32,9 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             </div>
           )}
           <span className="user-name">{user.display_name}</span>
+          <button className="btn btn-sm btn-outline" onClick={onShowHistory}>
+            History
+          </button>
           <button className="btn btn-sm btn-outline-danger" onClick={onLogout}>
             Logout
           </button>

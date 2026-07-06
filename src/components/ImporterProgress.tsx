@@ -8,6 +8,8 @@ interface ImporterProgressProps {
   isPublic: boolean;
   apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
   onRestart: () => void;
+  onBackToList: () => void;
+  onImportComplete: (entry: { name: string; url: string; matched: number; failed: number; total: number }) => void;
 }
 
 interface MatchResult {
@@ -27,6 +29,8 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   isPublic,
   apiRequest,
   onRestart,
+  onBackToList,
+  onImportComplete,
 }) => {
   const [status, setStatus] = useState<'creating' | 'importing' | 'paused' | 'completed' | 'failed'>('creating');
   const [progress, setProgress] = useState(0); // 0 to 100
@@ -44,6 +48,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   // Buffers to batch track additions to Spotify playlist (max 100 tracks per call)
   const pendingUrisRef = useRef<string[]>([]);
   const matchedCountRef = useRef(0);
+  const hasReportedCompletionRef = useRef(false);
 
   // Toggle pause state
   const handlePauseToggle = () => {
@@ -247,7 +252,19 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     };
   }, [tracks, playlistName, playlistDesc, isPublic, apiRequest]);
 
-
+  // Record completed imports to history once, after the playlist actually exists
+  useEffect(() => {
+    if (status === 'completed' && playlistUrl && !hasReportedCompletionRef.current) {
+      hasReportedCompletionRef.current = true;
+      onImportComplete({
+        name: playlistName,
+        url: playlistUrl,
+        matched: matchedTracks.length,
+        failed: failedTracks.length,
+        total: tracks.length,
+      });
+    }
+  }, [status, playlistUrl, playlistName, matchedTracks.length, failedTracks.length, tracks.length, onImportComplete]);
 
   return (
     <div className="importer-progress-panel glass-panel">
@@ -297,6 +314,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           ) : (
             <div className="badge-wrapper danger">❌ Failed</div>
           )}
+          {playlistUrl && <h3 className="completion-playlist-name">{playlistName}</h3>}
 
           <div className="form-actions center-align mt-4">
             {playlistUrl && (
@@ -304,6 +322,9 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
                 🟢 Open Spotify Playlist
               </a>
             )}
+            <button className="btn btn-outline" onClick={onBackToList}>
+              ← Back to Tracklist
+            </button>
             <button className="btn btn-primary" onClick={onRestart}>
               Import Another Playlist
             </button>

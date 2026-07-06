@@ -642,6 +642,22 @@ textarea.form-control {
   color: var(--accent-color);
 }
 
+.completion-playlist-name {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+.history-item {
+  justify-content: space-between;
+}
+
+.duplicate-warning {
+  margin: -0.75rem 0 1.5rem;
+  font-size: 0.85rem;
+  color: var(--warning-color);
+}
+
 .mt-4 {
   margin-top: 1.5rem;
 }
