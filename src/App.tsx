@@ -91,7 +91,7 @@ function App() {
   const getRedirectUri = () => {
     const envUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
     if (envUri) return envUri;
-    return window.location.origin + window.location.pathname;
+    return window.location.origin + '/';
   };
 
   return (
@@ -127,7 +127,8 @@ function App() {
 
             <Route path="/import" element={<TrackInput initialText={rawText} onNext={handleTracksNext} />} />
 
-            <Route path="/export" element={<SpotifyExport apiRequest={apiRequest} onBack={() => navigate('/')} />} />
+            <Route path="/export" element={<SpotifyExport apiRequest={apiRequest} />} />
+            <Route path="/export/:playlistId" element={<SpotifyExport apiRequest={apiRequest} />} />
 
             <Route
               path="/playlist"

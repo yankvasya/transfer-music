@@ -46,8 +46,9 @@ export function useSpotify() {
   const getRedirectUri = useCallback(() => {
     const envUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
     if (envUri) return envUri;
-    // Fallback to current URL path (stripping search queries)
-    return window.location.origin + window.location.pathname;
+    // Always the site root, regardless of which route the user is currently on —
+    // this must exactly match what's registered in the Spotify Developer Dashboard.
+    return window.location.origin + '/';
   }, []);
 
   // Save tokens to state and localStorage
