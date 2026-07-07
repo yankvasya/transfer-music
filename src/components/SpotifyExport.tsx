@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 interface SpotifyPlaylistSummary {
   id: string;
@@ -9,12 +10,14 @@ interface SpotifyPlaylistSummary {
 
 interface SpotifyExportProps {
   apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
-  onBack: () => void;
 }
 
-export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack }) => {
+export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest }) => {
+  const { playlistId } = useParams<{ playlistId?: string }>();
+  const navigate = useNavigate();
+
   const [step, setStep] = useState<'loading-playlists' | 'select' | 'loading-tracks' | 'result' | 'error'>(
-    'loading-playlists'
+    playlistId ? 'loading-tracks' : 'loading-playlists'
   );
   const [playlists, setPlaylists] = useState<SpotifyPlaylistSummary[]>([]);
   const [selectedName, setSelectedName] = useState('');
@@ -23,8 +26,11 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'selected'>('idle');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Loads the picker list — only relevant when no playlist is selected in the URL.
   useEffect(() => {
+    if (playlistId) return;
     let active = true;
+    setStep('loading-playlists');
 
     const loadPlaylists = async () => {
       try {
@@ -37,7 +43,8 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
             results.push({
               id: p.id,
               name: p.name,
-              trackCount: p.tracks?.total ?? 0,
+              // "items" is the current field name; "tracks" is Spotify's deprecated alias for it.
+              trackCount: p.items?.total ?? p.tracks?.total ?? 0,
               image: p.images?.[0]?.url,
             });
           }
@@ -60,34 +67,52 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
     return () => {
       active = false;
     };
-  }, [apiRequest]);
+  }, [apiRequest, playlistId]);
 
-  const handleSelectPlaylist = async (playlist: SpotifyPlaylistSummary) => {
-    setSelectedName(playlist.name);
+  // Loads a specific playlist's tracks — driven entirely by the URL, so a direct link or a
+  // reload while viewing a playlist re-fetches the same one instead of losing everything.
+  useEffect(() => {
+    if (!playlistId) return;
+    let active = true;
     setStep('loading-tracks');
 
-    try {
-      const lines: string[] = [];
-      let endpoint: string | null = `/playlists/${playlist.id}/items?limit=100`;
+    const loadTracks = async () => {
+      try {
+        const meta = await apiRequest(`/playlists/${playlistId}?fields=name`);
+        if (!active) return;
+        setSelectedName(meta.name);
 
-      while (endpoint) {
-        const data = await apiRequest(endpoint);
-        for (const item of data.items || []) {
-          const track = item.track;
-          if (!track) continue; // removed/local tracks come back null
-          const artists = (track.artists || []).map((a: any) => a.name).join(', ');
-          lines.push(artists ? `${artists} - ${track.name}` : track.name);
+        const lines: string[] = [];
+        let endpoint: string | null = `/playlists/${playlistId}/items?limit=100`;
+
+        while (endpoint) {
+          const data = await apiRequest(endpoint);
+          for (const entry of data.items || []) {
+            // "item" is the current field name; "track" is Spotify's deprecated alias for it.
+            const track = entry.item ?? entry.track;
+            if (!track) continue; // removed/local tracks come back null
+            const artists = (track.artists || []).map((a: any) => a.name).join(', ');
+            lines.push(artists ? `${artists} - ${track.name}` : track.name);
+          }
+          endpoint = data.next;
         }
-        endpoint = data.next;
-      }
 
-      setTrackLines(lines);
-      setStep('result');
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to load this playlist\'s tracks.');
-      setStep('error');
-    }
-  };
+        if (!active) return;
+        setTrackLines(lines);
+        setStep('result');
+      } catch (err: any) {
+        if (active) {
+          setErrorMsg(err.message || "Failed to load this playlist's tracks.");
+          setStep('error');
+        }
+      }
+    };
+
+    loadTracks();
+    return () => {
+      active = false;
+    };
+  }, [playlistId, apiRequest]);
 
   const textContent = trackLines.join('\n');
 
@@ -135,7 +160,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
         <h2>❌ Something went wrong</h2>
         <p className="description-text">{errorMsg}</p>
         <div className="form-actions">
-          <button className="btn btn-secondary" onClick={onBack}>
+          <button className="btn btn-secondary" onClick={() => navigate('/')}>
             ← Back
           </button>
         </div>
@@ -158,7 +183,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
                 key={playlist.id}
                 type="button"
                 className="log-item history-item playlist-pick-item"
-                onClick={() => handleSelectPlaylist(playlist)}
+                onClick={() => navigate(`/export/${playlist.id}`)}
               >
                 <div className="history-item-info">
                   <div className="log-item-raw">{playlist.name}</div>
@@ -172,7 +197,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
         )}
 
         <div className="form-actions center-align mt-4">
-          <button className="btn btn-secondary" onClick={onBack}>
+          <button className="btn btn-secondary" onClick={() => navigate('/')}>
             ← Back
           </button>
         </div>
@@ -183,7 +208,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
   if (step === 'loading-tracks') {
     return (
       <div className="glass-panel center-align">
-        <div className="spinner">Fetching tracks from "{selectedName}"...</div>
+        <div className="spinner">Fetching tracks{selectedName ? ` from "${selectedName}"` : ''}...</div>
       </div>
     );
   }
@@ -198,7 +223,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, onBack
       </div>
 
       <div className="form-actions">
-        <button className="btn btn-secondary" onClick={() => setStep('select')}>
+        <button className="btn btn-secondary" onClick={() => navigate('/export')}>
           ← Choose Another Playlist
         </button>
         <button className="btn btn-outline" onClick={handleCopy}>
