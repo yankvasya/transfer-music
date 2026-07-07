@@ -7,10 +7,12 @@ import { Header } from './components/Header';
 import { ClientIdSetup } from './components/ClientIdSetup';
 import { LoginButton } from './components/LoginButton';
 import { SourceDestinationSelect } from './components/SourceDestinationSelect';
+import type { ConnectorId } from './components/SourceDestinationSelect';
 import { TrackInput } from './components/TrackInput';
 import { PlaylistSetup } from './components/PlaylistSetup';
 import { ProgressRoute } from './components/ProgressRoute';
 import { HistoryView } from './components/HistoryView';
+import { SpotifyExport } from './components/SpotifyExport';
 import type { ParsedTrack } from './utils/parser';
 import type { ResumeData } from './types';
 
@@ -66,6 +68,14 @@ function App() {
 
   const handleGoHome = () => navigate('/');
 
+  const handleConnectorContinue = (from: ConnectorId, to: ConnectorId) => {
+    if (from === 'spotify' && to === 'plain-text') {
+      navigate('/export');
+    } else {
+      navigate('/import');
+    }
+  };
+
   const handleResumeImport = (entry: HistoryEntry) => {
     if (!entry.resumeData) return;
     setTracks(entry.resumeData.tracks);
@@ -113,9 +123,11 @@ function App() {
       {!isLoading && isAuthenticated && (
         <main>
           <Routes>
-            <Route path="/" element={<SourceDestinationSelect onContinue={() => navigate('/import')} />} />
+            <Route path="/" element={<SourceDestinationSelect onContinue={handleConnectorContinue} />} />
 
             <Route path="/import" element={<TrackInput initialText={rawText} onNext={handleTracksNext} />} />
+
+            <Route path="/export" element={<SpotifyExport apiRequest={apiRequest} onBack={() => navigate('/')} />} />
 
             <Route
               path="/playlist"
