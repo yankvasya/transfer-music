@@ -127,8 +127,7 @@ function App() {
 
             <Route path="/import" element={<TrackInput initialText={rawText} onNext={handleTracksNext} />} />
 
-            <Route path="/export" element={<SpotifyExport apiRequest={apiRequest} />} />
-            <Route path="/export/:playlistId" element={<SpotifyExport apiRequest={apiRequest} />} />
+            <Route path="/export" element={<SpotifyExport apiRequest={apiRequest} currentUserId={user?.id ?? null} />} />
 
             <Route
               path="/playlist"
