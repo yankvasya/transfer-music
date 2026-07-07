@@ -704,6 +704,21 @@ textarea.form-control {
   flex-shrink: 0;
 }
 
+.playlist-pick-item {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.playlist-pick-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .duplicate-warning {
   margin: -0.75rem 0 1.5rem;
   font-size: 0.85rem;
@@ -750,12 +765,24 @@ textarea.form-control {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   text-align: center;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.connector-tile:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .connector-tile.active {
   border-color: var(--accent-color);
   background: rgba(29, 185, 84, 0.1);
   box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.connector-tile:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .connector-tile-icon {
