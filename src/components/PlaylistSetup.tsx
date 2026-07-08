@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import type { ApiRequest, SourceConnector } from '../connectors/types';
 
 interface PlaylistSetupProps {
   trackCount: number;
-  apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
+  apiRequest: ApiRequest;
+  source: SourceConnector;
+  currentUserId: string | null;
   onBack: () => void;
   onStart: (name: string, description: string, isPublic: boolean) => void;
 }
@@ -10,6 +13,8 @@ interface PlaylistSetupProps {
 export const PlaylistSetup: React.FC<PlaylistSetupProps> = ({
   trackCount,
   apiRequest,
+  source,
+  currentUserId,
   onBack,
   onStart,
 }) => {
@@ -20,36 +25,24 @@ export const PlaylistSetup: React.FC<PlaylistSetupProps> = ({
   const [existingNames, setExistingNames] = useState<Set<string>>(new Set());
 
   // Best-effort check for existing playlist names, so users can spot accidental duplicates.
-  // Spotify itself allows duplicate names, so this only ever warns, never blocks.
+  // These services allow duplicate names, so this only ever warns, never blocks.
   useEffect(() => {
     let active = true;
 
     const loadExistingNames = async () => {
-      const names = new Set<string>();
-      let endpoint: string | null = '/me/playlists?limit=50';
-      let pages = 0;
-
-      while (endpoint && pages < 10) {
-        try {
-          const data = await apiRequest(endpoint);
-          for (const playlist of data.items || []) {
-            names.add(playlist.name.toLowerCase());
-          }
-          endpoint = data.next;
-        } catch {
-          break;
-        }
-        pages++;
+      try {
+        const playlists = await source.listPlaylists(apiRequest, currentUserId);
+        if (active) setExistingNames(new Set(playlists.map((p) => p.name.toLowerCase())));
+      } catch {
+        // Non-critical — just skip the warning if this fails.
       }
-
-      if (active) setExistingNames(names);
     };
 
     loadExistingNames();
     return () => {
       active = false;
     };
-  }, [apiRequest]);
+  }, [apiRequest, source, currentUserId]);
 
   const isDuplicateName = existingNames.has(name.trim().toLowerCase());
 
@@ -62,9 +55,9 @@ export const PlaylistSetup: React.FC<PlaylistSetupProps> = ({
 
   return (
     <div className="playlist-setup-panel glass-panel">
-      <h2>🎵 Step 2: Configure Spotify Playlist</h2>
+      <h2>🎵 Step 2: Configure {source.label} Playlist</h2>
       <p className="description-text">
-        Prepare the settings for the new Spotify playlist containing your <strong>{trackCount}</strong> tracks.
+        Prepare the settings for the new {source.label} playlist containing your <strong>{trackCount}</strong> tracks.
       </p>
 
       <form onSubmit={handleSubmit} className="setup-form">
@@ -81,7 +74,7 @@ export const PlaylistSetup: React.FC<PlaylistSetupProps> = ({
           />
           {isDuplicateName && (
             <p className="duplicate-warning">
-              ⚠ You already have a playlist named "{name.trim()}". Spotify allows duplicate names, so a new,
+              ⚠ You already have a playlist named "{name.trim()}". {source.label} allows duplicate names, so a new,
               separate playlist will be created — rename it above if that's not what you want.
             </p>
           )}

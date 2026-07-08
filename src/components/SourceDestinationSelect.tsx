@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type ConnectorId = 'plain-text' | 'spotify';
+export type ConnectorId = 'plain-text' | 'spotify' | 'youtube';
 
 interface ConnectorOption {
   id: ConnectorId;
@@ -8,12 +8,18 @@ interface ConnectorOption {
   label: string;
 }
 
-// Every connector can sit on either side today. As more services are added, some pairs
-// may need explicit compatibility rules instead of "just not the same one twice".
 const CONNECTORS: ConnectorOption[] = [
   { id: 'plain-text', icon: '📋', label: 'Plain Text' },
   { id: 'spotify', icon: '🎧', label: 'Spotify' },
+  { id: 'youtube', icon: '▶️', label: 'YouTube' },
 ];
+
+// Plain Text can pair with any service; two services can't yet transfer directly into
+// each other (no Spotify -> YouTube style bridge exists), only via Plain Text.
+const isPairSupported = (from: ConnectorId, to: ConnectorId): boolean => {
+  if (from === to) return false;
+  return from === 'plain-text' || to === 'plain-text';
+};
 
 interface SourceDestinationSelectProps {
   onContinue: (from: ConnectorId, to: ConnectorId) => void;
@@ -23,16 +29,20 @@ export const SourceDestinationSelect: React.FC<SourceDestinationSelectProps> = (
   const [from, setFrom] = useState<ConnectorId>('plain-text');
   const [to, setTo] = useState<ConnectorId>('spotify');
 
-  const otherOf = (id: ConnectorId): ConnectorId => (id === 'plain-text' ? 'spotify' : 'plain-text');
-
   const handleSelectFrom = (id: ConnectorId) => {
     setFrom(id);
-    if (to === id) setTo(otherOf(id));
+    if (!isPairSupported(id, to)) {
+      const fallback = CONNECTORS.find((c) => isPairSupported(id, c.id));
+      if (fallback) setTo(fallback.id);
+    }
   };
 
   const handleSelectTo = (id: ConnectorId) => {
     setTo(id);
-    if (from === id) setFrom(otherOf(id));
+    if (!isPairSupported(from, id)) {
+      const fallback = CONNECTORS.find((c) => isPairSupported(c.id, id));
+      if (fallback) setFrom(fallback.id);
+    }
   };
 
   return (
@@ -40,7 +50,7 @@ export const SourceDestinationSelect: React.FC<SourceDestinationSelectProps> = (
       <h2>🔀 Choose Import & Export</h2>
       <p className="description-text">
         Pick where your tracklist is coming from and where it should go. More services (VK, Yandex Music, etc.)
-        are planned — for now only Plain Text and Spotify are available, in either direction.
+        are planned — for now a service can only pair with Plain Text, not directly with another service.
       </p>
 
       <div className="connector-picker">

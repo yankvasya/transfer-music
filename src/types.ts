@@ -1,16 +1,19 @@
 import type { ParsedTrack } from './utils/parser';
 
+export type ServiceId = 'spotify' | 'youtube';
+
 export interface MatchResult {
   track: ParsedTrack;
-  spotifyName?: string;
-  spotifyArtist?: string;
-  uri?: string;
+  matchedName?: string;
+  matchedArtist?: string;
+  externalId?: string;
   url?: string;
   success: boolean;
   errorReason?: string;
 }
 
 export interface ResumeData {
+  service: ServiceId;
   playlistId: string;
   playlistUrl: string;
   playlistDesc: string;

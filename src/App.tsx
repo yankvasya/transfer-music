@@ -1,35 +1,54 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useSpotify } from './hooks/useSpotify';
+import { useYouTube } from './hooks/useYouTube';
 import { useHistory } from './hooks/useHistory';
 import type { HistoryEntry } from './hooks/useHistory';
 import { Header } from './components/Header';
-import { ClientIdSetup } from './components/ClientIdSetup';
-import { LoginButton } from './components/LoginButton';
 import { SourceDestinationSelect } from './components/SourceDestinationSelect';
 import type { ConnectorId } from './components/SourceDestinationSelect';
-import { TrackInput } from './components/TrackInput';
-import { PlaylistSetup } from './components/PlaylistSetup';
+import { ImportRoute } from './components/ImportRoute';
+import { PlaylistRoute } from './components/PlaylistRoute';
+import { ExportRoute } from './components/ExportRoute';
 import { ProgressRoute } from './components/ProgressRoute';
 import { HistoryView } from './components/HistoryView';
-import { SpotifyExport } from './components/SpotifyExport';
+import { SERVICE_META } from './serviceMeta';
+import type { ServiceAuth } from './serviceMeta';
 import type { ParsedTrack } from './utils/parser';
-import type { ResumeData } from './types';
+import type { ResumeData, ServiceId } from './types';
 
 function App() {
-  const {
-    clientId,
-    setClientId,
-    user,
-    isAuthenticated,
-    isLoading,
-    login,
-    logout,
-    apiRequest,
-  } = useSpotify();
-
+  const spotify = useSpotify();
+  const youtube = useYouTube();
   const { history, saveProgress, completeEntry, removeEntry } = useHistory();
   const navigate = useNavigate();
+
+  // Both services fall back to the exact same redirect URI (site root), so one value
+  // covers whichever Developer Dashboard / Google Cloud console the user is configuring.
+  const redirectUri = (import.meta.env.VITE_SPOTIFY_REDIRECT_URI as string | undefined) || window.location.origin + '/';
+
+  const authByService: Record<ServiceId, ServiceAuth> = {
+    spotify: {
+      clientId: spotify.clientId,
+      setClientId: spotify.setClientId,
+      isAuthenticated: spotify.isAuthenticated,
+      isLoading: spotify.isLoading,
+      login: spotify.login,
+      user: spotify.user,
+      logout: spotify.logout,
+      apiRequest: spotify.apiRequest,
+    },
+    youtube: {
+      clientId: youtube.clientId,
+      setClientId: youtube.setClientId,
+      isAuthenticated: youtube.isAuthenticated,
+      isLoading: youtube.isLoading,
+      login: youtube.login,
+      user: youtube.user,
+      logout: youtube.logout,
+      apiRequest: youtube.apiRequest,
+    },
+  };
 
   // Importer data state (in-memory; /progress/:id survives a reload via History instead)
   const [rawText, setRawText] = useState<string>('');
@@ -40,18 +59,20 @@ function App() {
     isPublic: boolean;
   } | null>(null);
   // Identifies the history entry a running import checkpoints into, and (when resuming) what to pick up from.
-  const [activeImport, setActiveImport] = useState<{ id: string; resumeFrom?: ResumeData } | null>(null);
+  const [activeImport, setActiveImport] = useState<{ id: string; service: ServiceId; resumeFrom?: ResumeData } | null>(
+    null
+  );
 
-  const handleTracksNext = (parsedTracks: ParsedTrack[], text: string) => {
+  const handleTracksNext = (parsedTracks: ParsedTrack[], text: string, service: ServiceId) => {
     setTracks(parsedTracks);
     setRawText(text);
-    navigate('/playlist');
+    navigate(`/playlist?type=${service}`);
   };
 
-  const handlePlaylistStart = (name: string, description: string, isPublic: boolean) => {
+  const handlePlaylistStart = (name: string, description: string, isPublic: boolean, service: ServiceId) => {
     const id = crypto.randomUUID();
     setPlaylistConfig({ name, description, isPublic });
-    setActiveImport({ id });
+    setActiveImport({ id, service });
     navigate(`/progress/${id}`);
   };
 
@@ -60,19 +81,20 @@ function App() {
     setTracks([]);
     setPlaylistConfig(null);
     setActiveImport(null);
-    navigate('/import');
+    navigate('/');
   };
 
   // Returns to the tracklist step without discarding what was already entered/imported.
-  const handleBackToList = () => navigate('/import');
+  const handleBackToList = () => navigate(`/import?type=${activeImport?.service ?? 'spotify'}`);
 
   const handleGoHome = () => navigate('/');
 
   const handleConnectorContinue = (from: ConnectorId, to: ConnectorId) => {
-    if (from === 'spotify' && to === 'plain-text') {
-      navigate('/export');
+    if (from === 'plain-text') {
+      navigate(`/import?type=${to}`);
     } else {
-      navigate('/import');
+      // Only service -> plain-text is supported besides plain-text -> service.
+      navigate(`/export?type=${from}`);
     }
   };
 
@@ -84,64 +106,64 @@ function App() {
       description: entry.resumeData.playlistDesc,
       isPublic: entry.resumeData.isPublic,
     });
-    setActiveImport({ id: entry.id, resumeFrom: entry.resumeData });
+    setActiveImport({ id: entry.id, service: entry.resumeData.service, resumeFrom: entry.resumeData });
     navigate(`/progress/${entry.id}`);
   };
 
-  const getRedirectUri = () => {
-    const envUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
-    if (envUri) return envUri;
-    return window.location.origin + '/';
-  };
+  const isBooting = spotify.isLoading && youtube.isLoading;
+
+  const accounts = (['spotify', 'youtube'] as ServiceId[])
+    .filter((id) => authByService[id].isAuthenticated && authByService[id].user)
+    .map((id) => {
+      const auth = authByService[id];
+      const user = auth.user!;
+      return {
+        serviceName: SERVICE_META[id].name,
+        displayName: user.display_name,
+        imageUrl: user.images?.[0]?.url,
+        onLogout: auth.logout,
+      };
+    });
 
   return (
     <div className="app-container">
-      <Header user={user} onLogout={logout} onShowHistory={() => navigate('/history')} onGoHome={handleGoHome} />
+      <Header accounts={accounts} onShowHistory={() => navigate('/history')} onGoHome={handleGoHome} />
 
-      {/* Loading state */}
-      {isLoading && (
+      {isBooting ? (
         <div className="glass-panel center-align">
-          <div className="spinner">Connecting to Spotify...</div>
+          <div className="spinner">Loading...</div>
         </div>
-      )}
-
-      {/* Authentication Steps */}
-      {!isLoading && !isAuthenticated && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <ClientIdSetup
-            currentClientId={clientId}
-            onSave={setClientId}
-            redirectUri={getRedirectUri()}
-          />
-          {clientId && (
-            <LoginButton onLogin={login} isLoading={isLoading} />
-          )}
-        </div>
-      )}
-
-      {/* Importer Steps */}
-      {!isLoading && isAuthenticated && (
+      ) : (
         <main>
           <Routes>
             <Route path="/" element={<SourceDestinationSelect onContinue={handleConnectorContinue} />} />
 
-            <Route path="/import" element={<TrackInput initialText={rawText} onNext={handleTracksNext} />} />
+            <Route
+              path="/import"
+              element={
+                <ImportRoute
+                  authByService={authByService}
+                  redirectUri={redirectUri}
+                  rawText={rawText}
+                  onNext={handleTracksNext}
+                />
+              }
+            />
 
-            <Route path="/export" element={<SpotifyExport apiRequest={apiRequest} currentUserId={user?.id ?? null} />} />
+            <Route
+              path="/export"
+              element={<ExportRoute authByService={authByService} redirectUri={redirectUri} />}
+            />
 
             <Route
               path="/playlist"
               element={
-                tracks.length === 0 ? (
-                  <Navigate to="/import" replace />
-                ) : (
-                  <PlaylistSetup
-                    trackCount={tracks.length}
-                    apiRequest={apiRequest}
-                    onBack={() => navigate('/import')}
-                    onStart={handlePlaylistStart}
-                  />
-                )
+                <PlaylistRoute
+                  authByService={authByService}
+                  redirectUri={redirectUri}
+                  tracks={tracks}
+                  onStart={handlePlaylistStart}
+                />
               }
             />
 
@@ -153,7 +175,8 @@ function App() {
                   tracks={tracks}
                   playlistConfig={playlistConfig}
                   history={history}
-                  apiRequest={apiRequest}
+                  authByService={authByService}
+                  redirectUri={redirectUri}
                   onRestart={handleRestart}
                   onBackToList={handleBackToList}
                   onSaveProgress={saveProgress}

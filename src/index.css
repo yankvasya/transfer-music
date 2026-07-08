@@ -69,6 +69,15 @@ body {
   padding: 1rem 0;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .header-brand {
@@ -296,6 +305,18 @@ textarea.form-control {
   background: var(--accent-color-hover);
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(29, 185, 84, 0.4);
+}
+
+.btn-youtube {
+  background: #ff0000;
+  color: white;
+  gap: 0.5rem;
+}
+
+.btn-youtube:hover:not(:disabled) {
+  background: #d90000;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 0, 0, 0.35);
 }
 
 .btn-secondary {
