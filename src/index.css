@@ -725,6 +725,10 @@ textarea.form-control {
   flex-shrink: 0;
 }
 
+.history-service-icon {
+  margin-right: 0.25rem;
+}
+
 .playlist-pick-item {
   background: rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
