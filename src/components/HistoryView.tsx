@@ -1,5 +1,6 @@
 import React from 'react';
 import type { HistoryEntry } from '../hooks/useHistory';
+import { SERVICE_META } from '../serviceMeta';
 
 interface HistoryViewProps {
   history: HistoryEntry[];
@@ -20,36 +21,42 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
         <div className="empty-log">No imports yet.</div>
       ) : (
         <div className="log-list history-list">
-          {history.map((entry) => (
-            <div key={entry.id} className="log-item history-item">
-              <div className="history-item-info">
-                <div className="log-item-raw">
-                  {entry.name}
-                  {entry.status === 'incomplete' && (
-                    <span className="badge badge-warning">Incomplete</span>
+          {history.map((entry) => {
+            const meta = SERVICE_META[entry.service];
+            return (
+              <div key={entry.id} className="log-item history-item">
+                <div className="history-item-info">
+                  <div className="log-item-raw">
+                    <span className="history-service-icon" title={meta.name}>
+                      {meta.icon}
+                    </span>{' '}
+                    {entry.name}
+                    {entry.status === 'incomplete' && (
+                      <span className="badge badge-warning">Incomplete</span>
+                    )}
+                  </div>
+                  <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
+                    {new Date(entry.createdAt).toLocaleString()} · {entry.matched}/{entry.total} matched
+                    {entry.failed > 0 ? `, ${entry.failed} not found` : ''}
+                  </div>
+                </div>
+                <div className="history-item-actions">
+                  {entry.status === 'incomplete' ? (
+                    <button className="btn btn-sm btn-outline-success" onClick={() => onResume(entry)}>
+                      ▶ Resume
+                    </button>
+                  ) : (
+                    <a href={entry.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
+                      Open in {meta.name}
+                    </a>
                   )}
-                </div>
-                <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
-                  {new Date(entry.createdAt).toLocaleString()} · {entry.matched}/{entry.total} matched
-                  {entry.failed > 0 ? `, ${entry.failed} not found` : ''}
-                </div>
-              </div>
-              <div className="history-item-actions">
-                {entry.status === 'incomplete' ? (
-                  <button className="btn btn-sm btn-outline-success" onClick={() => onResume(entry)}>
-                    ▶ Resume
+                  <button className="btn btn-sm btn-outline-danger" onClick={() => onDelete(entry.id)}>
+                    ✕
                   </button>
-                ) : (
-                  <a href={entry.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
-                    Open in Spotify
-                  </a>
-                )}
-                <button className="btn btn-sm btn-outline-danger" onClick={() => onDelete(entry.id)}>
-                  ✕
-                </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
