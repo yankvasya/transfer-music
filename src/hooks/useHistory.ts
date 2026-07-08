@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
-import type { ResumeData } from '../types';
+import type { ResumeData, ServiceId } from '../types';
 
 export interface HistoryEntry {
   id: string;
+  service: ServiceId;
   name: string;
   url: string;
   createdAt: number;

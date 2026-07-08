@@ -1,13 +1,19 @@
 import React from 'react';
 
-interface HeaderProps {
-  user: { display_name: string; images: { url: string }[] } | null;
+export interface ConnectedAccount {
+  serviceName: string;
+  displayName: string;
+  imageUrl?: string;
   onLogout: () => void;
+}
+
+interface HeaderProps {
+  accounts: ConnectedAccount[];
   onShowHistory: () => void;
   onGoHome: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout, onShowHistory, onGoHome }) => {
+export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onGoHome }) => {
   return (
     <header className="app-header">
       <button type="button" className="header-brand" onClick={onGoHome}>
@@ -19,28 +25,28 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onShowHistory, o
         </svg>
         <div className="logo-text">
           <h1>TransferMusic</h1>
-          <p className="subtitle">Move your tracklists into Spotify — more services coming soon</p>
+          <p className="subtitle">Move your tracklists between music services</p>
         </div>
       </button>
 
-      {user && (
-        <div className="user-profile">
-          {user.images?.[0]?.url ? (
-            <img src={user.images[0].url} alt={user.display_name} className="user-avatar" />
-          ) : (
-            <div className="user-avatar-placeholder">
-              {user.display_name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <span className="user-name">{user.display_name}</span>
-          <button className="btn btn-sm btn-outline" onClick={onShowHistory}>
-            History
-          </button>
-          <button className="btn btn-sm btn-outline-danger" onClick={onLogout}>
-            Logout
-          </button>
-        </div>
-      )}
+      <div className="header-actions">
+        {accounts.map((account) => (
+          <div key={account.serviceName} className="user-profile">
+            {account.imageUrl ? (
+              <img src={account.imageUrl} alt={account.displayName} className="user-avatar" />
+            ) : (
+              <div className="user-avatar-placeholder">{account.displayName.charAt(0).toUpperCase()}</div>
+            )}
+            <span className="user-name">{account.displayName}</span>
+            <button className="btn btn-sm btn-outline-danger" onClick={account.onLogout}>
+              Logout {account.serviceName}
+            </button>
+          </div>
+        ))}
+        <button className="btn btn-sm btn-outline" onClick={onShowHistory}>
+          History
+        </button>
+      </div>
     </header>
   );
 };

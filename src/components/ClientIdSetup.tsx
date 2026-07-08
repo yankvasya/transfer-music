@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 
 interface ClientIdSetupProps {
+  serviceName?: string;
+  helpText?: string;
   currentClientId: string;
   onSave: (clientId: string) => void;
   redirectUri: string;
 }
 
 export const ClientIdSetup: React.FC<ClientIdSetupProps> = ({
+  serviceName = 'Spotify',
+  helpText = 'To use client-side authentication, you need to create a Spotify Developer App and get a Client ID.',
   currentClientId,
   onSave,
   redirectUri,
@@ -27,7 +31,7 @@ export const ClientIdSetup: React.FC<ClientIdSetupProps> = ({
       <div className="client-id-info glass-panel">
         <div className="info-row">
           <span>
-            <strong>Spotify Client ID:</strong> <code>{currentClientId.slice(0, 6)}...{currentClientId.slice(-6)}</code>
+            <strong>{serviceName} Client ID:</strong> <code>{currentClientId.slice(0, 6)}...{currentClientId.slice(-6)}</code>
           </span>
           <button className="btn btn-sm btn-outline" onClick={() => setShowConfig(true)}>
             Edit Config
@@ -39,28 +43,26 @@ export const ClientIdSetup: React.FC<ClientIdSetupProps> = ({
 
   return (
     <div className="client-id-setup glass-panel">
-      <h3>🔑 Spotify Developer Credentials</h3>
-      <p className="description-text">
-        To use client-side authentication, you need to create a Spotify Developer App and get a Client ID.
-      </p>
+      <h3>🔑 {serviceName} Developer Credentials</h3>
+      <p className="description-text">{helpText}</p>
 
       <form onSubmit={handleSubmit} className="setup-form">
         <div className="form-group">
-          <label htmlFor="clientIdInput">Spotify Client ID</label>
+          <label htmlFor="clientIdInput">{serviceName} Client ID</label>
           <input
             id="clientIdInput"
             type="text"
             className="form-control"
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            placeholder="Paste your Spotify Client ID here"
+            placeholder={`Paste your ${serviceName} Client ID here`}
             required
           />
         </div>
 
         <div className="redirect-uri-display">
           <p className="description-text">
-            <strong>Important:</strong> You must add this Redirect URI in your Spotify App settings:
+            <strong>Important:</strong> You must add this Redirect URI in your {serviceName} App settings:
           </p>
           <div className="copy-box">
             <code>{redirectUri}</code>

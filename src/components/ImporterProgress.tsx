@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { ParsedTrack } from '../utils/parser';
-import type { MatchResult, ResumeData } from '../types';
+import type { MatchResult, ResumeData, ServiceId } from '../types';
+import type { ApiRequest, DestinationConnector } from '../connectors/types';
 
-const CONCURRENCY = 5; // parallel searches; keep modest to stay well under Spotify's rate limits
+const CONCURRENCY = 5; // parallel searches; keep modest to stay well under most APIs' rate limits
 const PERSIST_EVERY = 20; // tracks between resumable checkpoints
 const VISIBLE_LIMIT = 10;
-// Spotify's own Retry-After is honored every time, but real-world Development Mode
-// lockouts have been reported lasting minutes to hours, not seconds — so after this many
-// rate-limited responses in a row (across all concurrent workers), stop instead of
-// hammering an API that has already told us "no" repeatedly.
+// Real-world Development Mode lockouts have been reported lasting minutes to hours, not
+// seconds — so after this many rate-limited responses in a row (across all concurrent
+// workers), stop instead of hammering an API that has already told us "no" repeatedly.
 const MAX_CONSECUTIVE_RATE_LIMITS = 15;
 
 interface ImporterProgressProps {
@@ -16,19 +16,20 @@ interface ImporterProgressProps {
   playlistName: string;
   playlistDesc: string;
   isPublic: boolean;
-  apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
+  apiRequest: ApiRequest;
+  connector: DestinationConnector;
   onRestart: () => void;
   onBackToList: () => void;
   historyId: string;
   resumeFrom?: ResumeData;
   onSaveProgress: (
     id: string,
-    summary: { name: string; url: string; matched: number; failed: number; total: number },
+    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; total: number },
     resumeData: ResumeData
   ) => void;
   onImportComplete: (
     id: string,
-    summary: { name: string; url: string; matched: number; failed: number; total: number }
+    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; total: number }
   ) => void;
 }
 
@@ -85,6 +86,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   playlistDesc,
   isPublic,
   apiRequest,
+  connector,
   onRestart,
   onBackToList,
   historyId,
@@ -104,9 +106,9 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
   const isPausedRef = useRef(false);
   const isCancelledRef = useRef(false);
-  const stopReasonRef = useRef<'user' | 'rate_limit' | null>(null);
+  const stopReasonRef = useRef<'user' | 'rate_limit' | 'quota_exceeded' | null>(null);
 
-  // Buffer of matched URIs not yet flushed to the playlist (max 100 per Spotify API call)
+  // Buffer of matched external IDs not yet flushed to the playlist (connector.batchSize per call)
   const pendingUrisRef = useRef<string[]>(resumeFrom?.pendingUris ?? []);
   // Mirrors of the state above, so async workers always read the latest value without stale closures
   const matchedTracksRef = useRef<MatchResult[]>(resumeFrom?.matchedTracks ?? []);
@@ -174,17 +176,10 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           setStatus('importing');
         } else {
           setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
-          const playlistData = await apiRequest('/me/playlists', {
-            method: 'POST',
-            body: JSON.stringify({
-              name: playlistName,
-              description: playlistDesc,
-              public: isPublic,
-            }),
-          });
+          const playlistData = await connector.createPlaylist(apiRequest, playlistName, playlistDesc, isPublic);
           if (!active || isCancelledRef.current) return;
           playlistId = playlistData.id;
-          url = playlistData.external_urls.spotify;
+          url = playlistData.url;
           setPlaylistUrl(url);
           setStatus('importing');
         }
@@ -217,30 +212,36 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         const registerSuccess = () => {
           rateLimitStreak = 0;
         };
+        // A quota error (e.g. YouTube's daily cap) can't be waited out within this session —
+        // stop immediately rather than treating it like a transient rate limit.
+        const registerQuotaExceeded = () => {
+          stopReasonRef.current = 'quota_exceeded';
+          isCancelledRef.current = true;
+        };
 
         const flushBatchToPlaylist = async () => {
           if (pendingUrisRef.current.length === 0) return;
           const urisToAdd = [...pendingUrisRef.current];
           pendingUrisRef.current = []; // Clear buffer immediately to prevent double adds
 
-          setCurrentActionMsg(`Adding ${urisToAdd.length} tracks to your playlist...`);
+          setCurrentActionMsg(`Adding ${urisToAdd.length} track${urisToAdd.length === 1 ? '' : 's'} to your playlist...`);
 
           let success = false;
           while (!success && active && !isCancelledRef.current) {
             await waitWhilePaused();
             if (!active || isCancelledRef.current) break;
 
-            const res = await apiRequest(`/playlists/${playlistId}/items`, {
-              method: 'POST',
-              body: JSON.stringify({ uris: urisToAdd }),
-            });
+            const res = await connector.addTracks(apiRequest, playlistId, urisToAdd);
 
-            if (res && res.isRateLimited) {
+            if (res.status === 'quota_exceeded') {
+              registerQuotaExceeded();
+              break;
+            } else if (res.status === 'rate_limited') {
               if (registerRateLimit()) break;
               let waitSec = res.waitSeconds;
               while (waitSec > 0 && active && !isCancelledRef.current) {
                 await waitWhilePaused();
-                setCurrentActionMsg(`Rate limited by Spotify! Retrying in ${waitSec}s...`);
+                setCurrentActionMsg(`Rate limited by ${connector.label}! Retrying in ${waitSec}s...`);
                 await sleep(1000);
                 waitSec--;
               }
@@ -261,6 +262,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           onSaveProgress(
             importIdRef.current,
             {
+              service: connector.id,
               name: playlistName,
               url,
               matched: matchedTracksRef.current.length,
@@ -268,6 +270,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               total: tracks.length,
             },
             {
+              service: connector.id,
               playlistId,
               playlistUrl: url,
               playlistDesc,
@@ -299,19 +302,20 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           await waitWhilePaused();
           if (!active || isCancelledRef.current) return;
 
-          const query = track.artist ? `artist:${track.artist} track:${track.title}` : track.title;
-          let searchResult: any = null;
-          let searchSuccess = false;
+          let searchDone = false;
 
-          while (!searchSuccess && active && !isCancelledRef.current) {
+          while (!searchDone && active && !isCancelledRef.current) {
             await waitWhilePaused();
             if (!active || isCancelledRef.current) return;
 
             try {
-              const res = await apiRequest(`/search?q=${encodeURIComponent(query)}&type=track&limit=1`);
+              const res = await connector.searchTrack(apiRequest, track);
 
-              if (res && res.isRateLimited) {
-                if (registerRateLimit()) break;
+              if (res.status === 'quota_exceeded') {
+                registerQuotaExceeded();
+                return;
+              } else if (res.status === 'rate_limited') {
+                if (registerRateLimit()) return;
                 let waitSec = res.waitSeconds;
                 while (waitSec > 0 && active && !isCancelledRef.current) {
                   await waitWhilePaused();
@@ -319,47 +323,50 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
                   await sleep(1000);
                   waitSec--;
                 }
+              } else if (res.status === 'found') {
+                registerSuccess();
+                const result: MatchResult = {
+                  track,
+                  matchedName: res.matchedTitle,
+                  matchedArtist: res.matchedArtist,
+                  externalId: res.externalId,
+                  url: res.url,
+                  success: true,
+                };
+                matchedTracksRef.current = [result, ...matchedTracksRef.current];
+                setMatchedTracks(matchedTracksRef.current);
+                pendingUrisRef.current.push(res.externalId);
+                searchDone = true;
               } else {
                 registerSuccess();
-                searchResult = res;
-                searchSuccess = true;
+                const result: MatchResult = {
+                  track,
+                  success: false,
+                  errorReason: `Track not found on ${connector.label}`,
+                };
+                failedTracksRef.current = [result, ...failedTracksRef.current];
+                setFailedTracks(failedTracksRef.current);
+                searchDone = true;
               }
             } catch (err: any) {
               console.error(`Search error for track "${track.raw}":`, err);
-              searchResult = null;
-              searchSuccess = true; // Break loop, treat as search fail
+              const result: MatchResult = {
+                track,
+                success: false,
+                errorReason: `Search failed for this track on ${connector.label}`,
+              };
+              failedTracksRef.current = [result, ...failedTracksRef.current];
+              setFailedTracks(failedTracksRef.current);
+              searchDone = true; // Break loop, treat as search fail
             }
           }
 
           if (!active || isCancelledRef.current) return;
 
-          const spotifyTrack = searchResult?.tracks?.items?.[0];
-          if (spotifyTrack) {
-            const result: MatchResult = {
-              track,
-              spotifyName: spotifyTrack.name,
-              spotifyArtist: spotifyTrack.artists.map((a: any) => a.name).join(', '),
-              uri: spotifyTrack.uri,
-              url: spotifyTrack.external_urls.spotify,
-              success: true,
-            };
-            matchedTracksRef.current = [result, ...matchedTracksRef.current];
-            setMatchedTracks(matchedTracksRef.current);
-            pendingUrisRef.current.push(spotifyTrack.uri);
-          } else {
-            const result: MatchResult = {
-              track,
-              success: false,
-              errorReason: 'Track not found on Spotify',
-            };
-            failedTracksRef.current = [result, ...failedTracksRef.current];
-            setFailedTracks(failedTracksRef.current);
-          }
-
           doneFlags[index] = true;
 
-          // If buffer has 100 items, flush to Spotify playlist to stay under limits
-          if (pendingUrisRef.current.length >= 100) {
+          // If buffer has reached this connector's batch limit, flush to the playlist.
+          if (pendingUrisRef.current.length >= connector.batchSize) {
             await flushBatchToPlaylist();
           }
 
@@ -400,17 +407,24 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         if (isCancelledRef.current) {
           persistProgress();
           setStatus('completed');
-          setCurrentActionMsg(
-            stopReasonRef.current === 'rate_limit'
-              ? "Stopped: Spotify kept rate-limiting this app even after waiting it out. Development-mode lockouts have been reported lasting anywhere from minutes to several hours, so retrying immediately won't help — your progress is saved, resume from History once it clears."
-              : 'Import stopped. Resume it anytime from History.'
-          );
+          if (stopReasonRef.current === 'quota_exceeded') {
+            setCurrentActionMsg(
+              `Stopped: ${connector.label}'s daily API quota ran out. This resets on its own (YouTube resets at midnight Pacific Time) — your progress is saved, resume from History once it clears.`
+            );
+          } else if (stopReasonRef.current === 'rate_limit') {
+            setCurrentActionMsg(
+              `Stopped: ${connector.label} kept rate-limiting this app even after waiting it out. Lockouts like this have been reported lasting anywhere from minutes to several hours, so retrying immediately won't help — your progress is saved, resume from History once it clears.`
+            );
+          } else {
+            setCurrentActionMsg('Import stopped. Resume it anytime from History.');
+          }
         } else {
           setProgress(100);
           setCurrentIndex(tracks.length);
           setStatus('completed');
           setCurrentActionMsg('Playlist import completed successfully!');
           onImportComplete(importIdRef.current, {
+            service: connector.id,
             name: playlistName,
             url,
             matched: matchedTracksRef.current.length,
@@ -433,7 +447,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, playlistName, playlistDesc, isPublic, apiRequest, historyId]);
+  }, [tracks, playlistName, playlistDesc, isPublic, apiRequest, connector, historyId]);
 
   return (
     <div className="importer-progress-panel glass-panel">
@@ -488,7 +502,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           <div className="form-actions center-align mt-4">
             {playlistUrl && (
               <a href={playlistUrl} target="_blank" rel="noopener noreferrer" className="btn btn-success btn-lg">
-                🟢 Open Spotify Playlist
+                🟢 Open {connector.label} Playlist
               </a>
             )}
             <button className="btn btn-outline" onClick={onBackToList}>
@@ -512,7 +526,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               <span className="log-item-raw">{item.track.raw}</span>
               <span className="arrow">➔</span>
               <a href={item.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
-                {item.spotifyArtist} - {item.spotifyName}
+                {item.matchedArtist} - {item.matchedName}
               </a>
             </div>
           )}

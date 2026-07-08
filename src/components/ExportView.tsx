@@ -1,28 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { ApiRequest, PlaylistSummary, SourceConnector } from '../connectors/types';
 
-interface SpotifyPlaylistSummary {
-  id: string;
-  name: string;
-  trackCount: number;
-  image?: string;
-  exportable: boolean;
-}
-
-interface SpotifyExportProps {
-  apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
+interface ExportViewProps {
+  source: SourceConnector;
+  apiRequest: ApiRequest;
   currentUserId: string | null;
 }
 
-export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, currentUserId }) => {
+export const ExportView: React.FC<ExportViewProps> = ({ source, apiRequest, currentUserId }) => {
   const [searchParams] = useSearchParams();
-  const playlistId = searchParams.get('type') === 'spotify' ? searchParams.get('playlist_id') : null;
+  const playlistId = searchParams.get('type') === source.id ? searchParams.get('playlist_id') : null;
   const navigate = useNavigate();
 
   const [step, setStep] = useState<'loading-playlists' | 'select' | 'loading-tracks' | 'result' | 'error'>(
     playlistId ? 'loading-tracks' : 'loading-playlists'
   );
-  const [playlists, setPlaylists] = useState<SpotifyPlaylistSummary[]>([]);
+  const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [selectedName, setSelectedName] = useState('');
   const [trackLines, setTrackLines] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
@@ -37,27 +31,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
 
     const loadPlaylists = async () => {
       try {
-        const results: SpotifyPlaylistSummary[] = [];
-        let endpoint: string | null = '/me/playlists?limit=50';
-
-        while (endpoint) {
-          const data = await apiRequest(endpoint);
-          for (const p of data.items || []) {
-            // Reading items is only allowed for playlists you own or collaborate on —
-            // anything else (followed/saved playlists) will 403 if you try.
-            const exportable = p.owner?.id === currentUserId || p.collaborative === true;
-            results.push({
-              id: p.id,
-              name: p.name,
-              // "items" is the current field name; "tracks" is Spotify's deprecated alias for it.
-              trackCount: p.items?.total ?? p.tracks?.total ?? 0,
-              image: p.images?.[0]?.url,
-              exportable,
-            });
-          }
-          endpoint = data.next;
-        }
-
+        const results = await source.listPlaylists(apiRequest, currentUserId);
         if (active) {
           setPlaylists(results);
           setStep('select');
@@ -74,7 +48,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
     return () => {
       active = false;
     };
-  }, [apiRequest, playlistId, currentUserId]);
+  }, [apiRequest, playlistId, currentUserId, source]);
 
   // Loads a specific playlist's tracks — driven entirely by the URL, so a direct link or a
   // reload while viewing a playlist re-fetches the same one instead of losing everything.
@@ -85,25 +59,11 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
 
     const loadTracks = async () => {
       try {
-        const meta = await apiRequest(`/playlists/${playlistId}?fields=name`);
+        const name = await source.getPlaylistName(apiRequest, playlistId);
         if (!active) return;
-        setSelectedName(meta.name);
+        setSelectedName(name);
 
-        const lines: string[] = [];
-        let endpoint: string | null = `/playlists/${playlistId}/items?limit=100`;
-
-        while (endpoint) {
-          const data = await apiRequest(endpoint);
-          for (const entry of data.items || []) {
-            // "item" is the current field name; "track" is Spotify's deprecated alias for it.
-            const track = entry.item ?? entry.track;
-            if (!track) continue; // removed/local tracks come back null
-            const artists = (track.artists || []).map((a: any) => a.name).join(', ');
-            lines.push(artists ? `${artists} - ${track.name}` : track.name);
-          }
-          endpoint = data.next;
-        }
-
+        const lines = await source.getPlaylistTrackLines(apiRequest, playlistId);
         if (!active) return;
         setTrackLines(lines);
         setStep('result');
@@ -119,7 +79,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
     return () => {
       active = false;
     };
-  }, [playlistId, apiRequest]);
+  }, [playlistId, apiRequest, source]);
 
   const textContent = trackLines.join('\n');
 
@@ -156,7 +116,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
   if (step === 'loading-playlists') {
     return (
       <div className="glass-panel center-align">
-        <div className="spinner">Loading your Spotify playlists...</div>
+        <div className="spinner">Loading your {source.label} playlists...</div>
       </div>
     );
   }
@@ -178,7 +138,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
   if (step === 'select') {
     return (
       <div className="glass-panel">
-        <h2>📤 Export a Spotify Playlist</h2>
+        <h2>📤 Export a {source.label} Playlist</h2>
         <p className="description-text">Pick a playlist to turn into a plain-text tracklist.</p>
 
         {playlists.length === 0 ? (
@@ -191,7 +151,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
                   <button
                     type="button"
                     className="playlist-pick-button"
-                    onClick={() => navigate(`/export?type=spotify&playlist_id=${playlist.id}`)}
+                    onClick={() => navigate(`/export?type=${source.id}&playlist_id=${playlist.id}`)}
                   >
                     <div className="history-item-info">
                       <div className="log-item-raw">{playlist.name}</div>
@@ -208,19 +168,11 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, curren
                         {playlist.trackCount} tracks
                       </div>
                     </div>
-                    <span
-                      className="playlist-not-owned-badge"
-                      title="This playlist belongs to someone else, so Spotify won't let this app read its tracks. Open it in Spotify, use '...' -> 'Add to other playlist' -> 'New Playlist' to make your own copy, then export that copy instead."
-                    >
+                    <span className="playlist-not-owned-badge" title={playlist.unexportableReason}>
                       ❓
                     </span>
-                    <a
-                      href={`https://open.spotify.com/playlist/${playlist.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-sm btn-outline"
-                    >
-                      Open in Spotify
+                    <a href={playlist.externalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">
+                      Open in {source.label}
                     </a>
                   </>
                 )}
