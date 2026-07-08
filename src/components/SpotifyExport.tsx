@@ -1,19 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface SpotifyPlaylistSummary {
   id: string;
   name: string;
   trackCount: number;
   image?: string;
+  exportable: boolean;
 }
 
 interface SpotifyExportProps {
   apiRequest: (endpoint: string, options?: RequestInit) => Promise<any>;
+  currentUserId: string | null;
 }
 
-export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest }) => {
-  const { playlistId } = useParams<{ playlistId?: string }>();
+export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest, currentUserId }) => {
+  const [searchParams] = useSearchParams();
+  const playlistId = searchParams.get('type') === 'spotify' ? searchParams.get('playlist_id') : null;
   const navigate = useNavigate();
 
   const [step, setStep] = useState<'loading-playlists' | 'select' | 'loading-tracks' | 'result' | 'error'>(
@@ -40,12 +43,16 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest }) => {
         while (endpoint) {
           const data = await apiRequest(endpoint);
           for (const p of data.items || []) {
+            // Reading items is only allowed for playlists you own or collaborate on —
+            // anything else (followed/saved playlists) will 403 if you try.
+            const exportable = p.owner?.id === currentUserId || p.collaborative === true;
             results.push({
               id: p.id,
               name: p.name,
               // "items" is the current field name; "tracks" is Spotify's deprecated alias for it.
               trackCount: p.items?.total ?? p.tracks?.total ?? 0,
               image: p.images?.[0]?.url,
+              exportable,
             });
           }
           endpoint = data.next;
@@ -67,7 +74,7 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest }) => {
     return () => {
       active = false;
     };
-  }, [apiRequest, playlistId]);
+  }, [apiRequest, playlistId, currentUserId]);
 
   // Loads a specific playlist's tracks — driven entirely by the URL, so a direct link or a
   // reload while viewing a playlist re-fetches the same one instead of losing everything.
@@ -179,19 +186,45 @@ export const SpotifyExport: React.FC<SpotifyExportProps> = ({ apiRequest }) => {
         ) : (
           <div className="log-list history-list">
             {playlists.map((playlist) => (
-              <button
-                key={playlist.id}
-                type="button"
-                className="log-item history-item playlist-pick-item"
-                onClick={() => navigate(`/export/${playlist.id}`)}
-              >
-                <div className="history-item-info">
-                  <div className="log-item-raw">{playlist.name}</div>
-                  <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
-                    {playlist.trackCount} tracks
-                  </div>
-                </div>
-              </button>
+              <div key={playlist.id} className="log-item history-item playlist-pick-item">
+                {playlist.exportable ? (
+                  <button
+                    type="button"
+                    className="playlist-pick-button"
+                    onClick={() => navigate(`/export?type=spotify&playlist_id=${playlist.id}`)}
+                  >
+                    <div className="history-item-info">
+                      <div className="log-item-raw">{playlist.name}</div>
+                      <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
+                        {playlist.trackCount} tracks
+                      </div>
+                    </div>
+                  </button>
+                ) : (
+                  <>
+                    <div className="history-item-info playlist-pick-disabled">
+                      <div className="log-item-raw">{playlist.name}</div>
+                      <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
+                        {playlist.trackCount} tracks
+                      </div>
+                    </div>
+                    <span
+                      className="playlist-not-owned-badge"
+                      title="This playlist belongs to someone else, so Spotify won't let this app read its tracks. Open it in Spotify, use '...' -> 'Add to other playlist' -> 'New Playlist' to make your own copy, then export that copy instead."
+                    >
+                      ❓
+                    </span>
+                    <a
+                      href={`https://open.spotify.com/playlist/${playlist.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm btn-outline"
+                    >
+                      Open in Spotify
+                    </a>
+                  </>
+                )}
+              </div>
             ))}
           </div>
         )}

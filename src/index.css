@@ -705,18 +705,38 @@ textarea.form-control {
 }
 
 .playlist-pick-item {
-  width: 100%;
   background: rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
+  gap: 0.75rem;
+}
+
+.playlist-pick-button {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: none;
+  border: none;
   color: inherit;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.2s ease;
+  padding: 0;
+  transition: opacity 0.2s ease;
 }
 
-.playlist-pick-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+.playlist-pick-button:hover {
+  opacity: 0.8;
+}
+
+.playlist-pick-disabled {
+  flex: 1 1 auto;
+  min-width: 0;
+  opacity: 0.5;
+}
+
+.playlist-not-owned-badge {
+  flex-shrink: 0;
+  cursor: help;
+  font-size: 1.1rem;
 }
 
 .duplicate-warning {
