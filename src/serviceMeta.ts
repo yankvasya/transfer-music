@@ -47,4 +47,13 @@ export const SERVICE_META: Record<ServiceId, ServiceMeta> = {
     helpText: '',
     loginDescription: '',
   },
+  deezer: {
+    name: 'Deezer',
+    icon: '🎶',
+    buttonClass: 'btn-deezer',
+    // helpText/loginDescription are unused by DeezerLoginUI (which has its own
+    // two-field App ID + Secret copy) but kept for a complete Record.
+    helpText: '',
+    loginDescription: '',
+  },
 };

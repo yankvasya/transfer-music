@@ -7,6 +7,7 @@ interface LoginButtonProps {
   icon?: string;
   description?: string;
   buttonClassName?: string;
+  securityNote?: string;
 }
 
 export const LoginButton: React.FC<LoginButtonProps> = ({
@@ -16,6 +17,7 @@ export const LoginButton: React.FC<LoginButtonProps> = ({
   icon = '🟢',
   description = 'Log in with your Spotify account to authorize creating playlists and importing your tracks.',
   buttonClassName = 'btn-spotify',
+  securityNote = 'Note: We use client-side authentication (PKCE). Your credentials and tokens are stored safely in your own browser and never uploaded to any server.',
 }) => {
   return (
     <div className="login-panel glass-panel center-align">
@@ -37,9 +39,7 @@ export const LoginButton: React.FC<LoginButtonProps> = ({
         )}
       </button>
 
-      <p className="security-note">
-        Note: We use client-side authentication (PKCE). Your credentials and tokens are stored safely in your own browser and never uploaded to any server.
-      </p>
+      <p className="security-note">{securityNote}</p>
     </div>
   );
 };

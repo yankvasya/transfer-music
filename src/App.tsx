@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useSpotify } from './hooks/useSpotify';
 import { useYouTube } from './hooks/useYouTube';
 import { useYandexMusic } from './hooks/useYandexMusic';
+import { useDeezer } from './hooks/useDeezer';
 import { useHistory } from './hooks/useHistory';
 import type { HistoryEntry } from './hooks/useHistory';
 import { Header } from './components/Header';
@@ -16,23 +17,26 @@ import { ProgressRoute } from './components/ProgressRoute';
 import { HistoryView } from './components/HistoryView';
 import { OAuthLoginUI } from './components/OAuthLoginUI';
 import { YandexDeviceLogin } from './components/YandexDeviceLogin';
+import { DeezerLoginUI } from './components/DeezerLoginUI';
 import { SERVICE_META } from './serviceMeta';
 import type { ServiceAuth } from './serviceMeta';
 import type { ParsedTrack } from './utils/parser';
 import type { ResumeData, ServiceId } from './types';
 
-const ALL_SERVICES: ServiceId[] = ['spotify', 'youtube', 'yandex-music'];
+const ALL_SERVICES: ServiceId[] = ['spotify', 'youtube', 'yandex-music', 'deezer'];
 
 function App() {
   const spotify = useSpotify();
   const youtube = useYouTube();
   const yandex = useYandexMusic();
+  const deezer = useDeezer();
   const { history, saveProgress, completeEntry, removeEntry } = useHistory();
   const navigate = useNavigate();
 
-  // Both redirect-based services fall back to the exact same redirect URI (site root), so
-  // one value covers whichever Developer Dashboard / Google Cloud console the user is
-  // configuring. Yandex's device flow has no redirect URI at all.
+  // The redirect-based services (Spotify, YouTube, Deezer) all fall back to the exact
+  // same redirect URI (site root), so one value covers whichever developer
+  // dashboard/console the user is configuring. Yandex's device flow has no redirect URI
+  // at all.
   const redirectUri = (import.meta.env.VITE_SPOTIFY_REDIRECT_URI as string | undefined) || window.location.origin + '/';
 
   const authByService: Record<ServiceId, ServiceAuth> = {
@@ -57,11 +61,19 @@ function App() {
       logout: yandex.logout,
       apiRequest: yandex.apiRequest,
     },
+    deezer: {
+      isAuthenticated: deezer.isAuthenticated,
+      isLoading: deezer.isLoading,
+      user: deezer.user,
+      logout: deezer.logout,
+      apiRequest: deezer.apiRequest,
+    },
   };
 
   // Builds the service-specific login screen shown when a route is gated by RequireAuth.
   // Spotify/YouTube share the redirect-OAuth UI (each brings its own Client ID setup);
-  // Yandex's device flow needs its own UI entirely.
+  // Yandex's device flow and Deezer's two-field (App ID + Secret) redirect flow each need
+  // their own UI.
   const renderLoginUI = (service: ServiceId): ReactNode => {
     const meta = SERVICE_META[service];
     if (service === 'yandex-music') {
@@ -72,6 +84,19 @@ function App() {
           authError={yandex.authError}
           onStart={yandex.startDeviceAuth}
           onCancel={yandex.cancelDeviceAuth}
+        />
+      );
+    }
+    if (service === 'deezer') {
+      return (
+        <DeezerLoginUI
+          appId={deezer.appId}
+          setAppId={deezer.setAppId}
+          appSecret={deezer.appSecret}
+          setAppSecret={deezer.setAppSecret}
+          isLoading={deezer.isLoading}
+          login={deezer.login}
+          redirectUri={redirectUri}
         />
       );
     }
@@ -152,7 +177,7 @@ function App() {
     navigate(`/progress/${entry.id}`);
   };
 
-  const isBooting = spotify.isLoading && youtube.isLoading && yandex.isLoading;
+  const isBooting = spotify.isLoading && youtube.isLoading && yandex.isLoading && deezer.isLoading;
 
   const accounts = ALL_SERVICES
     .filter((id) => authByService[id].isAuthenticated && authByService[id].user)

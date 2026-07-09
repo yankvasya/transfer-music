@@ -1,6 +1,6 @@
 import type { ServiceId } from '../types';
 
-const KNOWN_SERVICES: ServiceId[] = ['spotify', 'youtube', 'yandex-music'];
+const KNOWN_SERVICES: ServiceId[] = ['spotify', 'youtube', 'yandex-music', 'deezer'];
 
 export function resolveService(searchParams: URLSearchParams): ServiceId {
   const type = searchParams.get('type');
