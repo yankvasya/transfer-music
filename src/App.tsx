@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useSpotify } from './hooks/useSpotify';
 import { useYouTube } from './hooks/useYouTube';
+import { useYandexMusic } from './hooks/useYandexMusic';
 import { useHistory } from './hooks/useHistory';
 import type { HistoryEntry } from './hooks/useHistory';
 import { Header } from './components/Header';
@@ -12,42 +14,82 @@ import { PlaylistRoute } from './components/PlaylistRoute';
 import { ExportRoute } from './components/ExportRoute';
 import { ProgressRoute } from './components/ProgressRoute';
 import { HistoryView } from './components/HistoryView';
+import { OAuthLoginUI } from './components/OAuthLoginUI';
+import { YandexDeviceLogin } from './components/YandexDeviceLogin';
 import { SERVICE_META } from './serviceMeta';
 import type { ServiceAuth } from './serviceMeta';
 import type { ParsedTrack } from './utils/parser';
 import type { ResumeData, ServiceId } from './types';
 
+const ALL_SERVICES: ServiceId[] = ['spotify', 'youtube', 'yandex-music'];
+
 function App() {
   const spotify = useSpotify();
   const youtube = useYouTube();
+  const yandex = useYandexMusic();
   const { history, saveProgress, completeEntry, removeEntry } = useHistory();
   const navigate = useNavigate();
 
-  // Both services fall back to the exact same redirect URI (site root), so one value
-  // covers whichever Developer Dashboard / Google Cloud console the user is configuring.
+  // Both redirect-based services fall back to the exact same redirect URI (site root), so
+  // one value covers whichever Developer Dashboard / Google Cloud console the user is
+  // configuring. Yandex's device flow has no redirect URI at all.
   const redirectUri = (import.meta.env.VITE_SPOTIFY_REDIRECT_URI as string | undefined) || window.location.origin + '/';
 
   const authByService: Record<ServiceId, ServiceAuth> = {
     spotify: {
-      clientId: spotify.clientId,
-      setClientId: spotify.setClientId,
       isAuthenticated: spotify.isAuthenticated,
       isLoading: spotify.isLoading,
-      login: spotify.login,
       user: spotify.user,
       logout: spotify.logout,
       apiRequest: spotify.apiRequest,
     },
     youtube: {
-      clientId: youtube.clientId,
-      setClientId: youtube.setClientId,
       isAuthenticated: youtube.isAuthenticated,
       isLoading: youtube.isLoading,
-      login: youtube.login,
       user: youtube.user,
       logout: youtube.logout,
       apiRequest: youtube.apiRequest,
     },
+    'yandex-music': {
+      isAuthenticated: yandex.isAuthenticated,
+      isLoading: yandex.isLoading,
+      user: yandex.user,
+      logout: yandex.logout,
+      apiRequest: yandex.apiRequest,
+    },
+  };
+
+  // Builds the service-specific login screen shown when a route is gated by RequireAuth.
+  // Spotify/YouTube share the redirect-OAuth UI (each brings its own Client ID setup);
+  // Yandex's device flow needs its own UI entirely.
+  const renderLoginUI = (service: ServiceId): ReactNode => {
+    const meta = SERVICE_META[service];
+    if (service === 'yandex-music') {
+      return (
+        <YandexDeviceLogin
+          deviceCode={yandex.deviceCode}
+          authStatus={yandex.authStatus}
+          authError={yandex.authError}
+          onStart={yandex.startDeviceAuth}
+          onCancel={yandex.cancelDeviceAuth}
+        />
+      );
+    }
+    const hook = service === 'spotify' ? spotify : youtube;
+    return (
+      <OAuthLoginUI
+        clientId={hook.clientId}
+        setClientId={hook.setClientId}
+        isLoading={hook.isLoading}
+        login={hook.login}
+        serviceName={meta.name}
+        helpText={meta.helpText}
+        loginDescription={meta.loginDescription}
+        loginIcon={meta.icon}
+        loginButtonClass={meta.buttonClass}
+        redirectUri={redirectUri}
+      />
+    );
   };
 
   // Importer data state (in-memory; /progress/:id survives a reload via History instead)
@@ -110,9 +152,9 @@ function App() {
     navigate(`/progress/${entry.id}`);
   };
 
-  const isBooting = spotify.isLoading && youtube.isLoading;
+  const isBooting = spotify.isLoading && youtube.isLoading && yandex.isLoading;
 
-  const accounts = (['spotify', 'youtube'] as ServiceId[])
+  const accounts = ALL_SERVICES
     .filter((id) => authByService[id].isAuthenticated && authByService[id].user)
     .map((id) => {
       const auth = authByService[id];
@@ -143,7 +185,7 @@ function App() {
               element={
                 <ImportRoute
                   authByService={authByService}
-                  redirectUri={redirectUri}
+                  renderLoginUI={renderLoginUI}
                   rawText={rawText}
                   onNext={handleTracksNext}
                 />
@@ -152,7 +194,7 @@ function App() {
 
             <Route
               path="/export"
-              element={<ExportRoute authByService={authByService} redirectUri={redirectUri} />}
+              element={<ExportRoute authByService={authByService} renderLoginUI={renderLoginUI} />}
             />
 
             <Route
@@ -160,7 +202,7 @@ function App() {
               element={
                 <PlaylistRoute
                   authByService={authByService}
-                  redirectUri={redirectUri}
+                  renderLoginUI={renderLoginUI}
                   tracks={tracks}
                   onStart={handlePlaylistStart}
                 />
@@ -176,7 +218,7 @@ function App() {
                   playlistConfig={playlistConfig}
                   history={history}
                   authByService={authByService}
-                  redirectUri={redirectUri}
+                  renderLoginUI={renderLoginUI}
                   onRestart={handleRestart}
                   onBackToList={handleBackToList}
                   onSaveProgress={saveProgress}

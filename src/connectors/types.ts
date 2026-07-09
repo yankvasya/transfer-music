@@ -1,4 +1,5 @@
 import type { ParsedTrack } from '../utils/parser';
+import type { ServiceId } from '../types';
 
 export type ApiRequest = (endpoint: string, options?: RequestInit) => Promise<any>;
 
@@ -18,7 +19,7 @@ export type AddTracksOutcome =
 // independently of searches — batchSize tells it how many matches to accumulate first
 // (Spotify accepts up to 100 per call; YouTube's API only ever takes one).
 export interface DestinationConnector {
-  id: 'spotify' | 'youtube';
+  id: ServiceId;
   label: string;
   batchSize: number;
   createPlaylist(
@@ -44,7 +45,7 @@ export interface PlaylistSummary {
 
 // A music service the app can read an existing playlist out of, for the export direction.
 export interface SourceConnector {
-  id: 'spotify' | 'youtube';
+  id: ServiceId;
   label: string;
   listPlaylists(apiRequest: ApiRequest, currentUserId: string | null): Promise<PlaylistSummary[]>;
   getPlaylistName(apiRequest: ApiRequest, playlistId: string): Promise<string>;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type ConnectorId = 'plain-text' | 'spotify' | 'youtube';
+export type ConnectorId = 'plain-text' | 'spotify' | 'youtube' | 'yandex-music';
 
 interface ConnectorOption {
   id: ConnectorId;
@@ -12,6 +12,7 @@ const CONNECTORS: ConnectorOption[] = [
   { id: 'plain-text', icon: '📋', label: 'Plain Text' },
   { id: 'spotify', icon: '🎧', label: 'Spotify' },
   { id: 'youtube', icon: '▶️', label: 'YouTube' },
+  { id: 'yandex-music', icon: '🎵', label: 'Yandex Music' },
 ];
 
 // Plain Text can pair with any service; two services can't yet transfer directly into
@@ -49,8 +50,8 @@ export const SourceDestinationSelect: React.FC<SourceDestinationSelectProps> = (
     <div className="glass-panel">
       <h2>🔀 Choose Import & Export</h2>
       <p className="description-text">
-        Pick where your tracklist is coming from and where it should go. More services (VK, Yandex Music, etc.)
-        are planned — for now a service can only pair with Plain Text, not directly with another service.
+        Pick where your tracklist is coming from and where it should go. More services (VK, Apple Music, etc.) are
+        planned — for now a service can only pair with Plain Text, not directly with another service.
       </p>
 
       <div className="connector-picker">
