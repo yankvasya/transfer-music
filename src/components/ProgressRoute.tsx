@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ReactNode } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { ImporterProgress } from './ImporterProgress';
 import { RequireAuth } from './RequireAuth';
@@ -15,7 +16,7 @@ interface ProgressRouteProps {
   playlistConfig: { name: string; description: string; isPublic: boolean } | null;
   history: HistoryEntry[];
   authByService: Record<ServiceId, ServiceAuth>;
-  redirectUri: string;
+  renderLoginUI: (service: ServiceId) => ReactNode;
   onRestart: () => void;
   onBackToList: () => void;
   onSaveProgress: (
@@ -39,7 +40,7 @@ export const ProgressRoute: React.FC<ProgressRouteProps> = ({
   playlistConfig,
   history,
   authByService,
-  redirectUri,
+  renderLoginUI,
   onRestart,
   onBackToList,
   onSaveProgress,
@@ -100,15 +101,7 @@ export const ProgressRoute: React.FC<ProgressRouteProps> = ({
     );
 
   return (
-    <RequireAuth
-      auth={auth}
-      serviceName={meta.name}
-      helpText={meta.helpText}
-      loginDescription={meta.loginDescription}
-      loginIcon={meta.icon}
-      loginButtonClass={meta.buttonClass}
-      redirectUri={redirectUri}
-    >
+    <RequireAuth isAuthenticated={auth.isAuthenticated} isLoading={auth.isLoading} serviceName={meta.name} loginUI={renderLoginUI(service)}>
       {content}
     </RequireAuth>
   );
