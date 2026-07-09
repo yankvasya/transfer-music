@@ -1,6 +1,6 @@
 import type { ParsedTrack } from './utils/parser';
 
-export type ServiceId = 'spotify' | 'youtube' | 'yandex-music';
+export type ServiceId = 'spotify' | 'youtube' | 'yandex-music' | 'deezer';
 
 export interface MatchResult {
   track: ParsedTrack;

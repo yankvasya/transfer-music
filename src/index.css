@@ -331,6 +331,18 @@ textarea.form-control {
   box-shadow: 0 4px 15px rgba(255, 204, 0, 0.4);
 }
 
+.btn-deezer {
+  background: #a238ff;
+  color: white;
+  gap: 0.5rem;
+}
+
+.btn-deezer:hover:not(:disabled) {
+  background: #b366ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(162, 56, 255, 0.4);
+}
+
 .btn-secondary {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
