@@ -16,12 +16,9 @@ const CONNECTORS: ConnectorOption[] = [
   { id: 'deezer', icon: '🎶', label: 'Deezer' },
 ];
 
-// Plain Text can pair with any service; two services can't yet transfer directly into
-// each other (no Spotify -> YouTube style bridge exists), only via Plain Text.
-const isPairSupported = (from: ConnectorId, to: ConnectorId): boolean => {
-  if (from === to) return false;
-  return from === 'plain-text' || to === 'plain-text';
-};
+// Any two distinct connectors can pair — a service can go through Plain Text, or
+// straight into another service via the direct bridge (see BridgeRoute).
+const isPairSupported = (from: ConnectorId, to: ConnectorId): boolean => from !== to;
 
 interface SourceDestinationSelectProps {
   onContinue: (from: ConnectorId, to: ConnectorId) => void;
@@ -51,8 +48,8 @@ export const SourceDestinationSelect: React.FC<SourceDestinationSelectProps> = (
     <div className="glass-panel">
       <h2>🔀 Choose Import & Export</h2>
       <p className="description-text">
-        Pick where your tracklist is coming from and where it should go. More services (VK, Apple Music, etc.) may
-        come later — for now a service can only pair with Plain Text, not directly with another service.
+        Pick where your tracklist is coming from and where it should go — straight from one service into another,
+        or through Plain Text if you just want a tracklist to paste somewhere.
       </p>
 
       <div className="connector-picker">

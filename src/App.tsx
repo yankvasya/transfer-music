@@ -13,6 +13,7 @@ import type { ConnectorId } from './components/SourceDestinationSelect';
 import { ImportRoute } from './components/ImportRoute';
 import { PlaylistRoute } from './components/PlaylistRoute';
 import { ExportRoute } from './components/ExportRoute';
+import { BridgeRoute } from './components/BridgeRoute';
 import { ProgressRoute } from './components/ProgressRoute';
 import { HistoryView } from './components/HistoryView';
 import { OAuthLoginUI } from './components/OAuthLoginUI';
@@ -159,9 +160,11 @@ function App() {
   const handleConnectorContinue = (from: ConnectorId, to: ConnectorId) => {
     if (from === 'plain-text') {
       navigate(`/import?type=${to}`);
-    } else {
-      // Only service -> plain-text is supported besides plain-text -> service.
+    } else if (to === 'plain-text') {
       navigate(`/export?type=${from}`);
+    } else {
+      // Both sides are real services — go straight from one into the other.
+      navigate(`/bridge?from=${from}&to=${to}`);
     }
   };
 
@@ -220,6 +223,13 @@ function App() {
             <Route
               path="/export"
               element={<ExportRoute authByService={authByService} renderLoginUI={renderLoginUI} />}
+            />
+
+            <Route
+              path="/bridge"
+              element={
+                <BridgeRoute authByService={authByService} renderLoginUI={renderLoginUI} onTracksReady={handleTracksNext} />
+              }
             />
 
             <Route
