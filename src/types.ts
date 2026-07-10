@@ -10,6 +10,9 @@ export interface MatchResult {
   url?: string;
   success: boolean;
   errorReason?: string;
+  // Set when this line resolved to a track another line in the same import already
+  // matched — it's skipped rather than added a second time.
+  isDuplicate?: boolean;
 }
 
 export interface ResumeData {
@@ -22,5 +25,8 @@ export interface ResumeData {
   startIndex: number;
   matchedTracks: MatchResult[];
   failedTracks: MatchResult[];
+  // Optional for backward compatibility with resumable entries saved before duplicate
+  // detection existed.
+  duplicateTracks?: MatchResult[];
   pendingUris: string[];
 }
