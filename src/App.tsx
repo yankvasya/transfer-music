@@ -14,6 +14,7 @@ import { ImportRoute } from './components/ImportRoute';
 import { PlaylistRoute } from './components/PlaylistRoute';
 import { ExportRoute } from './components/ExportRoute';
 import { BridgeRoute } from './components/BridgeRoute';
+import { BridgeQueueRoute } from './components/BridgeQueueRoute';
 import { ProgressRoute } from './components/ProgressRoute';
 import { HistoryView } from './components/HistoryView';
 import { OAuthLoginUI } from './components/OAuthLoginUI';
@@ -227,8 +228,18 @@ function App() {
 
             <Route
               path="/bridge"
+              element={<BridgeRoute authByService={authByService} renderLoginUI={renderLoginUI} />}
+            />
+
+            <Route
+              path="/bridge-queue"
               element={
-                <BridgeRoute authByService={authByService} renderLoginUI={renderLoginUI} onTracksReady={handleTracksNext} />
+                <BridgeQueueRoute
+                  authByService={authByService}
+                  renderLoginUI={renderLoginUI}
+                  onSaveProgress={saveProgress}
+                  onImportComplete={completeEntry}
+                />
               }
             />
 
