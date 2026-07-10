@@ -12,6 +12,8 @@ const VISIBLE_LIMIT = 10;
 // seconds — so after this many rate-limited responses in a row (across all concurrent
 // workers), stop instead of hammering an API that has already told us "no" repeatedly.
 const MAX_CONSECUTIVE_RATE_LIMITS = 15;
+// Module-level (not component-level) on purpose — see the claim check inside startImport.
+const playlistCreationClaimed = new Set<string>();
 
 interface ImporterProgressProps {
   tracks: ParsedTrack[];
@@ -33,6 +35,10 @@ interface ImporterProgressProps {
     id: string,
     summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number }
   ) => void;
+  // Fires once, a short delay after this run reaches a terminal state (completed or
+  // failed) — lets a caller (e.g. a bulk multi-playlist queue) know it's safe to move on,
+  // without needing to poll internal status.
+  onDone?: () => void;
 }
 
 interface LogPanelProps {
@@ -95,6 +101,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   resumeFrom,
   onSaveProgress,
   onImportComplete,
+  onDone,
 }) => {
   const [status, setStatus] = useState<'creating' | 'importing' | 'paused' | 'completed' | 'failed'>('creating');
   const [progress, setProgress] = useState(0); // 0 to 100
@@ -188,6 +195,13 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           setPlaylistId(playlistId);
           setStatus('importing');
         } else {
+          // React can render a duplicate, short-lived instance of this component for the
+          // same historyId in some navigation scenarios; claiming historyId synchronously
+          // here (before any await) ensures only one instance ever actually creates a
+          // playlist, regardless of how many instances briefly coexist.
+          if (playlistCreationClaimed.has(historyId)) return;
+          playlistCreationClaimed.add(historyId);
+
           setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
           const playlistData = await connector.createPlaylist(apiRequest, playlistName, playlistDesc, isPublic);
           if (!active || isCancelledRef.current) return;
@@ -482,6 +496,16 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, playlistName, playlistDesc, isPublic, apiRequest, connector, historyId]);
+
+  // Notifies a caller (e.g. a bulk queue) once this run is truly finished. A short delay
+  // gives the completed/failed screen a moment to actually be seen before advancing.
+  useEffect(() => {
+    if (status !== 'completed' && status !== 'failed') return;
+    if (!onDone) return;
+    const timer = setTimeout(onDone, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   // Manual re-match for a "Not Found" track: lets the user edit the search query (fix a
   // typo, drop a noisy word, etc.) and try again, available once the main loop has

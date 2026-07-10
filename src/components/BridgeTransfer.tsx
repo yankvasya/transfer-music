@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ApiRequest, PlaylistSummary, SourceConnector } from '../connectors/types';
-import { parseTracklist } from '../utils/parser';
-import type { ParsedTrack } from '../utils/parser';
 import { SERVICE_META } from '../serviceMeta';
 import type { ServiceId } from '../types';
 
@@ -12,37 +10,23 @@ interface BridgeTransferProps {
   source: SourceConnector;
   sourceApiRequest: ApiRequest;
   sourceCurrentUserId: string | null;
-  playlistId: string | null;
-  onTracksReady: (tracks: ParsedTrack[], rawText: string) => void;
 }
 
-// Picks a source playlist and hands its parsed tracks straight to the destination's
-// playlist-setup step (via onTracksReady, which is App.tsx's existing handleTracksNext) —
-// same downstream pipeline (PlaylistSetup, ImporterProgress, History/resume) as a manual
-// paste import, just fed from a real playlist instead of typed text. Mirrors ExportView's
-// list-and-select step, but ends by parsing instead of showing text to copy.
-export const BridgeTransfer: React.FC<BridgeTransferProps> = ({
-  from,
-  to,
-  source,
-  sourceApiRequest,
-  sourceCurrentUserId,
-  playlistId,
-  onTracksReady,
-}) => {
+// Lets the user pick one or more source playlists to move straight into the destination
+// service. Selecting a single playlist is just a queue of length one — BridgeQueue (the
+// next step) handles both the same way, so there's only one code path to maintain.
+export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source, sourceApiRequest, sourceCurrentUserId }) => {
   const navigate = useNavigate();
   const toMeta = SERVICE_META[to];
 
-  const [step, setStep] = useState<'loading-playlists' | 'select' | 'loading-tracks' | 'error'>(
-    playlistId ? 'loading-tracks' : 'loading-playlists'
-  );
+  const [step, setStep] = useState<'loading' | 'select' | 'error'>('loading');
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (playlistId) return;
     let active = true;
-    setStep('loading-playlists');
+    setStep('loading');
 
     source
       .listPlaylists(sourceApiRequest, sourceCurrentUserId)
@@ -62,44 +46,26 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({
     return () => {
       active = false;
     };
-  }, [playlistId, source, sourceApiRequest, sourceCurrentUserId]);
+  }, [source, sourceApiRequest, sourceCurrentUserId]);
 
-  useEffect(() => {
-    if (!playlistId) return;
-    let active = true;
-    setStep('loading-tracks');
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-    source
-      .getPlaylistTrackLines(sourceApiRequest, playlistId)
-      .then((lines) => {
-        if (!active) return;
-        const text = lines.join('\n');
-        onTracksReady(parseTracklist(text), text);
-      })
-      .catch((err: any) => {
-        if (active) {
-          setErrorMsg(err.message || "Failed to load this playlist's tracks.");
-          setStep('error');
-        }
-      });
+  const handleContinue = () => {
+    if (selected.size === 0) return;
+    navigate(`/bridge-queue?from=${from}&to=${to}&playlist_ids=${Array.from(selected).join(',')}`);
+  };
 
-    return () => {
-      active = false;
-    };
-  }, [playlistId, source, sourceApiRequest, onTracksReady]);
-
-  if (step === 'loading-playlists') {
+  if (step === 'loading') {
     return (
       <div className="glass-panel center-align">
         <div className="spinner">Loading your {source.label} playlists...</div>
-      </div>
-    );
-  }
-
-  if (step === 'loading-tracks') {
-    return (
-      <div className="glass-panel center-align">
-        <div className="spinner">Fetching tracks to move to {toMeta.name}...</div>
       </div>
     );
   }
@@ -121,10 +87,10 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({
   return (
     <div className="glass-panel">
       <h2>
-        🔀 Move a {source.label} Playlist to {toMeta.name}
+        🔀 Move {source.label} Playlists to {toMeta.name}
       </h2>
       <p className="description-text">
-        Pick a {source.label} playlist to transfer directly into {toMeta.name}.
+        Pick one or more {source.label} playlists to transfer directly into {toMeta.name}.
       </p>
 
       {playlists.length === 0 ? (
@@ -136,9 +102,10 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({
               {playlist.exportable ? (
                 <button
                   type="button"
-                  className="playlist-pick-button"
-                  onClick={() => navigate(`/bridge?from=${from}&to=${to}&playlist_id=${playlist.id}`)}
+                  className={`playlist-pick-button${selected.has(playlist.id) ? ' selected' : ''}`}
+                  onClick={() => toggle(playlist.id)}
                 >
+                  <input type="checkbox" checked={selected.has(playlist.id)} readOnly tabIndex={-1} />
                   <div className="history-item-info">
                     <div className="log-item-raw">{playlist.name}</div>
                     <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
@@ -170,6 +137,9 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({
       <div className="form-actions center-align mt-4">
         <button className="btn btn-secondary" onClick={() => navigate('/')}>
           ← Back
+        </button>
+        <button className="btn btn-primary" onClick={handleContinue} disabled={selected.size === 0}>
+          Move {selected.size > 0 ? `${selected.size} Playlist${selected.size === 1 ? '' : 's'}` : 'Playlists'} →
         </button>
       </div>
     </div>
