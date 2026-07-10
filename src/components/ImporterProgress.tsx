@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { parseTracklist } from '../utils/parser';
 import type { ParsedTrack } from '../utils/parser';
 import type { MatchResult, ResumeData, ServiceId } from '../types';
 import type { ApiRequest, DestinationConnector } from '../connectors/types';
@@ -25,12 +26,12 @@ interface ImporterProgressProps {
   resumeFrom?: ResumeData;
   onSaveProgress: (
     id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; total: number },
+    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number },
     resumeData: ResumeData
   ) => void;
   onImportComplete: (
     id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; total: number }
+    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number }
   ) => void;
 }
 
@@ -99,9 +100,13 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   const [progress, setProgress] = useState(0); // 0 to 100
   const [currentIndex, setCurrentIndex] = useState(resumeFrom?.startIndex ?? 0);
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(resumeFrom?.playlistUrl ?? null);
+  // Exposed as state (not just a local var inside the import effect) so the manual
+  // re-match action below can add a track to the right playlist after the main loop ends.
+  const [playlistId, setPlaylistId] = useState<string | null>(resumeFrom?.playlistId ?? null);
 
   const [matchedTracks, setMatchedTracks] = useState<MatchResult[]>(resumeFrom?.matchedTracks ?? []);
   const [failedTracks, setFailedTracks] = useState<MatchResult[]>(resumeFrom?.failedTracks ?? []);
+  const [duplicateTracks, setDuplicateTracks] = useState<MatchResult[]>(resumeFrom?.duplicateTracks ?? []);
 
   const [currentActionMsg, setCurrentActionMsg] = useState('Initializing...');
 
@@ -114,6 +119,12 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   // Mirrors of the state above, so async workers always read the latest value without stale closures
   const matchedTracksRef = useRef<MatchResult[]>(resumeFrom?.matchedTracks ?? []);
   const failedTracksRef = useRef<MatchResult[]>(resumeFrom?.failedTracks ?? []);
+  const duplicateTracksRef = useRef<MatchResult[]>(resumeFrom?.duplicateTracks ?? []);
+  // Every externalId already claimed by a matched track in this import, so a second input
+  // line resolving to the same real track gets skipped instead of added twice.
+  const claimedExternalIdsRef = useRef<Set<string>>(
+    new Set((resumeFrom?.matchedTracks ?? []).map((m) => m.externalId).filter((id): id is string => !!id))
+  );
   const importIdRef = useRef(historyId);
 
   // Toggle pause state
@@ -174,6 +185,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           playlistId = resumeFrom.playlistId;
           url = resumeFrom.playlistUrl;
           setPlaylistUrl(url);
+          setPlaylistId(playlistId);
           setStatus('importing');
         } else {
           setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
@@ -182,6 +194,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           playlistId = playlistData.id;
           url = playlistData.url;
           setPlaylistUrl(url);
+          setPlaylistId(playlistId);
           setStatus('importing');
         }
 
@@ -268,6 +281,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               url,
               matched: matchedTracksRef.current.length,
               failed: failedTracksRef.current.length,
+              duplicates: duplicateTracksRef.current.length,
               total: tracks.length,
             },
             {
@@ -280,6 +294,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               startIndex: computeSafeStartIndex(),
               matchedTracks: matchedTracksRef.current,
               failedTracks: failedTracksRef.current,
+              duplicateTracks: duplicateTracksRef.current,
               pendingUris: pendingUrisRef.current,
             }
           );
@@ -326,17 +341,34 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
                 }
               } else if (res.status === 'found') {
                 registerSuccess();
-                const result: MatchResult = {
-                  track,
-                  matchedName: res.matchedTitle,
-                  matchedArtist: res.matchedArtist,
-                  externalId: res.externalId,
-                  url: res.url,
-                  success: true,
-                };
-                matchedTracksRef.current = [result, ...matchedTracksRef.current];
-                setMatchedTracks(matchedTracksRef.current);
-                pendingUrisRef.current.push(res.externalId);
+                if (claimedExternalIdsRef.current.has(res.externalId)) {
+                  // Another line in this same import already resolved to this exact
+                  // track — skip adding it again rather than duplicating it.
+                  const duplicate: MatchResult = {
+                    track,
+                    matchedName: res.matchedTitle,
+                    matchedArtist: res.matchedArtist,
+                    externalId: res.externalId,
+                    url: res.url,
+                    success: true,
+                    isDuplicate: true,
+                  };
+                  duplicateTracksRef.current = [duplicate, ...duplicateTracksRef.current];
+                  setDuplicateTracks(duplicateTracksRef.current);
+                } else {
+                  claimedExternalIdsRef.current.add(res.externalId);
+                  const result: MatchResult = {
+                    track,
+                    matchedName: res.matchedTitle,
+                    matchedArtist: res.matchedArtist,
+                    externalId: res.externalId,
+                    url: res.url,
+                    success: true,
+                  };
+                  matchedTracksRef.current = [result, ...matchedTracksRef.current];
+                  setMatchedTracks(matchedTracksRef.current);
+                  pendingUrisRef.current.push(res.externalId);
+                }
                 searchDone = true;
               } else {
                 registerSuccess();
@@ -430,6 +462,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
             url,
             matched: matchedTracksRef.current.length,
             failed: failedTracksRef.current.length,
+            duplicates: duplicateTracksRef.current.length,
             total: tracks.length,
           });
         }
@@ -449,6 +482,82 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, playlistName, playlistDesc, isPublic, apiRequest, connector, historyId]);
+
+  // Manual re-match for a "Not Found" track: lets the user edit the search query (fix a
+  // typo, drop a noisy word, etc.) and try again, available once the main loop has
+  // finished and a playlist actually exists to add into.
+  const [retryQueries, setRetryQueries] = useState<Record<string, string>>({});
+  const [retryStatus, setRetryStatus] = useState<Record<string, 'idle' | 'searching' | 'not_found' | 'error'>>({});
+
+  const refreshHistorySummary = () => {
+    if (!playlistUrl) return;
+    onImportComplete(importIdRef.current, {
+      service: connector.id,
+      name: playlistName,
+      url: playlistUrl,
+      matched: matchedTracksRef.current.length,
+      failed: failedTracksRef.current.length,
+      duplicates: duplicateTracksRef.current.length,
+      total: tracks.length,
+    });
+  };
+
+  const handleRetry = async (item: MatchResult) => {
+    const key = item.track.raw;
+    const queryText = (retryQueries[key] ?? `${item.track.artist} - ${item.track.title}`).trim();
+    if (!queryText || !playlistId) return;
+
+    setRetryStatus((s) => ({ ...s, [key]: 'searching' }));
+
+    // Reparses the edited text the same way pasted input is parsed, so a retry goes
+    // through the exact same search path as a normal import.
+    const [reparsed] = parseTracklist(queryText);
+
+    try {
+      const res = await connector.searchTrack(apiRequest, reparsed);
+
+      if (res.status !== 'found') {
+        setRetryStatus((s) => ({ ...s, [key]: 'not_found' }));
+        return;
+      }
+
+      const isDuplicate = claimedExternalIdsRef.current.has(res.externalId);
+      if (!isDuplicate) {
+        const addRes = await connector.addTracks(apiRequest, playlistId, [res.externalId]);
+        if (addRes.status !== 'ok') {
+          setRetryStatus((s) => ({ ...s, [key]: 'error' }));
+          return;
+        }
+        claimedExternalIdsRef.current.add(res.externalId);
+      }
+
+      const result: MatchResult = {
+        track: item.track,
+        matchedName: res.matchedTitle,
+        matchedArtist: res.matchedArtist,
+        externalId: res.externalId,
+        url: res.url,
+        success: true,
+        isDuplicate,
+      };
+
+      if (isDuplicate) {
+        duplicateTracksRef.current = [result, ...duplicateTracksRef.current];
+        setDuplicateTracks(duplicateTracksRef.current);
+      } else {
+        matchedTracksRef.current = [result, ...matchedTracksRef.current];
+        setMatchedTracks(matchedTracksRef.current);
+      }
+
+      failedTracksRef.current = failedTracksRef.current.filter((f) => f.track.raw !== key);
+      setFailedTracks(failedTracksRef.current);
+      setRetryStatus((s) => ({ ...s, [key]: 'idle' }));
+      refreshHistorySummary();
+    } catch (err: any) {
+      console.error(`Retry failed for track "${key}":`, err);
+      setRetryStatus((s) => ({ ...s, [key]: 'error' }));
+    }
+  };
 
   return (
     <div className="importer-progress-panel glass-panel">
@@ -471,6 +580,10 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         <div className="stat-card success">
           <div className="stat-value">{matchedTracks.length}</div>
           <div className="stat-label">Successfully Matched</div>
+        </div>
+        <div className="stat-card warning">
+          <div className="stat-value">{duplicateTracks.length}</div>
+          <div className="stat-label">Duplicates Skipped</div>
         </div>
         <div className="stat-card danger">
           <div className="stat-value">{failedTracks.length}</div>
@@ -534,6 +647,21 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         />
 
         <LogPanel
+          title="Duplicates Skipped"
+          items={duplicateTracks}
+          emptyLabel="No duplicates found..."
+          renderItem={(item, idx) => (
+            <div key={idx} className="log-item warning">
+              <span className="log-item-raw">{item.track.raw}</span>
+              <span className="arrow">➔</span>
+              <span className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
+                already added as {item.matchedArtist} - {item.matchedName}
+              </span>
+            </div>
+          )}
+        />
+
+        <LogPanel
           title="Not Found"
           items={failedTracks}
           emptyLabel="No missed tracks..."
@@ -544,12 +672,39 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               </button>
             ) : undefined
           }
-          renderItem={(item, idx) => (
-            <div key={idx} className="log-item danger">
-              <span className="log-item-raw">{item.track.raw}</span>
-              <span className="log-item-error">({item.errorReason})</span>
-            </div>
-          )}
+          renderItem={(item, idx) => {
+            const key = item.track.raw;
+            const status = retryStatus[key] ?? 'idle';
+            return (
+              <div key={idx} className="log-item danger" style={playlistId ? { flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' } : undefined}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: '0.5rem' }}>
+                  <span className="log-item-raw">{item.track.raw}</span>
+                  <span className="log-item-error">({item.errorReason})</span>
+                </div>
+                {playlistId && (
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="form-control retry-input"
+                      value={retryQueries[key] ?? `${item.track.artist} - ${item.track.title}`}
+                      onChange={(e) => setRetryQueries((q) => ({ ...q, [key]: e.target.value }))}
+                      placeholder="Edit search query and retry"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      onClick={() => handleRetry(item)}
+                      disabled={status === 'searching'}
+                    >
+                      {status === 'searching' ? '...' : '🔍 Retry'}
+                    </button>
+                  </div>
+                )}
+                {status === 'not_found' && <span className="log-item-error">Still not found — try editing the query.</span>}
+                {status === 'error' && <span className="log-item-error">Failed to add — try again.</span>}
+              </div>
+            );
+          }}
         />
       </div>
     </div>

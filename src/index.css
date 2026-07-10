@@ -205,6 +205,13 @@ label {
   transition: all 0.3s ease;
 }
 
+.retry-input {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  flex: 1;
+  min-width: 0;
+}
+
 .form-control:focus {
   outline: none;
   border-color: var(--accent-color);
@@ -550,7 +557,7 @@ textarea.form-control {
 
 .stats-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -571,6 +578,10 @@ textarea.form-control {
   border-left: 4px solid var(--danger-color);
 }
 
+.stat-card.warning {
+  border-left: 4px solid var(--warning-color);
+}
+
 .stat-value {
   font-size: 2.2rem;
   font-weight: 700;
@@ -586,7 +597,7 @@ textarea.form-control {
 /* Logs and lists */
 .log-container {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.5rem;
   margin-top: 2.5rem;
   height: 350px;
@@ -657,6 +668,11 @@ textarea.form-control {
   background: rgba(239, 68, 68, 0.05);
   border: 1px solid rgba(239, 68, 68, 0.15);
   justify-content: space-between;
+}
+
+.log-item.warning {
+  background: rgba(245, 158, 11, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.15);
 }
 
 .log-item-raw {
@@ -931,7 +947,7 @@ textarea.form-control {
   
   .log-container {
     grid-template-columns: 1fr;
-    height: 600px;
+    height: 900px;
   }
   
   .stats-row {

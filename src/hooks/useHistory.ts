@@ -9,6 +9,8 @@ export interface HistoryEntry {
   createdAt: number;
   matched: number;
   failed: number;
+  // Optional for backward compatibility with entries saved before duplicate detection existed.
+  duplicates?: number;
   total: number;
   status: 'completed' | 'incomplete';
   resumeData?: ResumeData;
