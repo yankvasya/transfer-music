@@ -40,6 +40,7 @@ describe('spotifyDestination.searchTrack', () => {
       matchedTitle: 'Let It Be',
       matchedArtist: 'The Beatles',
       url: 'https://open.spotify.com/track/abc',
+      confidence: 1,
     });
   });
 
@@ -47,6 +48,24 @@ describe('spotifyDestination.searchTrack', () => {
     const { apiRequest } = createMockApiRequest(() => ({ tracks: { items: [] } }));
     const result = await spotifyDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
     expect(result).toEqual({ status: 'not_found' });
+  });
+
+  it('returns needs_review with multiple candidates when nothing scores high enough to auto-accept', async () => {
+    const { apiRequest } = createMockApiRequest(() => ({
+      tracks: {
+        items: [
+          { uri: 'a', name: 'Let It', artists: [{ name: 'Cover Band' }], external_urls: { spotify: 'x' } },
+          { uri: 'b', name: 'Let It Be', artists: [{ name: 'Cover Band' }], external_urls: { spotify: 'y' } },
+        ],
+      },
+    }));
+
+    const result = await spotifyDestination.searchTrack(apiRequest, makeTrack('The Beatles - Let It Be', 'The Beatles', 'Let It Be'));
+
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('b'); // best match sorted first
+    }
   });
 
   it('surfaces a rate-limited response from apiRequest as status rate_limited', async () => {

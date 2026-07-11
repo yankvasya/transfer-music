@@ -1,4 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
+import { selectMatch } from '../utils/matching';
 
 export const spotifyDestination: DestinationConnector = {
   id: 'spotify',
@@ -15,22 +16,21 @@ export const spotifyDestination: DestinationConnector = {
 
   async searchTrack(apiRequest, track) {
     const query = track.artist ? `artist:${track.artist} track:${track.title}` : track.title;
-    const res = await apiRequest(`/search?q=${encodeURIComponent(query)}&type=track&limit=1`);
+    const res = await apiRequest(`/search?q=${encodeURIComponent(query)}&type=track&limit=5`);
 
     if (res && res.isRateLimited) {
       return { status: 'rate_limited', waitSeconds: res.waitSeconds };
     }
 
-    const item = res?.tracks?.items?.[0];
-    if (!item) return { status: 'not_found' };
-
-    return {
-      status: 'found',
+    const items = res?.tracks?.items || [];
+    const candidates = items.map((item: any) => ({
       externalId: item.uri,
-      matchedTitle: item.name,
-      matchedArtist: (item.artists || []).map((a: any) => a.name).join(', '),
+      title: item.name,
+      artist: (item.artists || []).map((a: any) => a.name).join(', '),
       url: item.external_urls.spotify,
-    };
+    }));
+
+    return selectMatch(track, candidates);
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {

@@ -35,6 +35,24 @@ describe('yandexDestination.searchTrack', () => {
     expect(result).toMatchObject({ status: 'found', externalId: '111:222', matchedArtist: 'Artist' });
   });
 
+  it('returns needs_review with multiple candidates when nothing is confident enough to auto-accept', async () => {
+    const { apiRequest } = createMockApiRequest(() => ({
+      tracks: {
+        results: [
+          { id: 1, title: 'Song', artists: [{ name: 'Cover Artist' }], albums: [{ id: 10 }], available: true },
+          { id: 2, title: 'Song Live', artists: [{ name: 'Cover Artist' }], albums: [{ id: 20 }], available: true },
+        ],
+      },
+    }));
+
+    const result = await yandexDestination.searchTrack(apiRequest, makeTrack('Original Artist - Song', 'Original Artist', 'Song'));
+
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('1:10'); // exact title match ranks above the "Live" variant
+    }
+  });
+
   it('skips a result with no album id, even if otherwise available', async () => {
     const { apiRequest } = createMockApiRequest(() => ({
       tracks: { results: [{ id: 111, title: 'Song', artists: [], albums: [], available: true }] },

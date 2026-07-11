@@ -29,7 +29,24 @@ describe('youtubeDestination.searchTrack', () => {
       matchedTitle: 'Let It Be',
       matchedArtist: 'The Beatles',
       url: 'https://www.youtube.com/watch?v=v123',
+      confidence: 1,
     });
+  });
+
+  it('returns needs_review when the top result is not confident enough to auto-accept', async () => {
+    const { apiRequest } = createMockApiRequest(() => ({
+      items: [
+        { id: { videoId: 'a' }, snippet: { title: 'Let It', channelTitle: 'Some Uploader' } },
+        { id: { videoId: 'b' }, snippet: { title: 'Let It Be', channelTitle: 'Some Uploader' } },
+      ],
+    }));
+
+    const result = await youtubeDestination.searchTrack(apiRequest, makeTrack('The Beatles - Let It Be', 'The Beatles', 'Let It Be'));
+
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('b');
+    }
   });
 
   it('returns quota_exceeded (not rate_limited) when the daily search quota is hit', async () => {

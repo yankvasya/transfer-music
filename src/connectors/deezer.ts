@@ -1,4 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
+import { selectMatch } from '../utils/matching';
 
 const API_BASE = 'https://api.deezer.com';
 
@@ -37,16 +38,16 @@ export const deezerDestination: DestinationConnector = {
       return { status: 'rate_limited', waitSeconds: res.waitSeconds };
     }
 
-    const match = (res?.data || []).find((t: any) => t.readable !== false);
-    if (!match) return { status: 'not_found' };
+    const candidates = (res?.data || [])
+      .filter((t: any) => t.readable !== false)
+      .map((t: any) => ({
+        externalId: String(t.id),
+        title: t.title,
+        artist: t.artist?.name ?? '',
+        url: t.link,
+      }));
 
-    return {
-      status: 'found',
-      externalId: String(match.id),
-      matchedTitle: match.title,
-      matchedArtist: match.artist?.name ?? '',
-      url: match.link,
-    };
+    return selectMatch(track, candidates);
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {

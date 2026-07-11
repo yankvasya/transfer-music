@@ -1,4 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
+import { selectMatch } from '../utils/matching';
 
 export const youtubeDestination: DestinationConnector = {
   id: 'youtube',
@@ -25,22 +26,25 @@ export const youtubeDestination: DestinationConnector = {
 
   async searchTrack(apiRequest, track) {
     const query = track.artist ? `${track.artist} ${track.title}` : track.title;
-    const res = await apiRequest(`/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query)}`);
+    const res = await apiRequest(`/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(query)}`);
 
     if (res && res.isQuotaExceeded) {
       return { status: 'quota_exceeded' };
     }
 
-    const item = res?.items?.[0];
-    if (!item) return { status: 'not_found' };
-
-    return {
-      status: 'found',
+    const items = res?.items || [];
+    // The channel name (e.g. "Adele - Topic", "Some VEVO") is a noisy stand-in for the
+    // actual artist, but it's the only per-result signal YouTube's search gives — scoring
+    // it low just means a track lands in review instead of wrongly auto-accepting, which
+    // is the safe direction for that noise to push things.
+    const candidates = items.map((item: any) => ({
       externalId: item.id.videoId,
-      matchedTitle: item.snippet.title,
-      matchedArtist: item.snippet.channelTitle,
+      title: item.snippet.title,
+      artist: item.snippet.channelTitle,
       url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-    };
+    }));
+
+    return selectMatch(track, candidates);
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {

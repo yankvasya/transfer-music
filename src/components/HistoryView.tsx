@@ -37,6 +37,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
                   </div>
                   <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
                     {new Date(entry.createdAt).toLocaleString()} · {entry.matched}/{entry.total} matched
+                    {entry.needsReview ? `, ${entry.needsReview} need${entry.needsReview === 1 ? 's' : ''} review` : ''}
                     {entry.failed > 0 ? `, ${entry.failed} not found` : ''}
                     {entry.duplicates ? `, ${entry.duplicates} duplicate${entry.duplicates === 1 ? '' : 's'} skipped` : ''}
                   </div>

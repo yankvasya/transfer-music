@@ -1,10 +1,13 @@
 import type { ParsedTrack } from '../utils/parser';
-import type { ServiceId } from '../types';
+import type { ServiceId, TrackCandidate } from '../types';
 
 export type ApiRequest = (endpoint: string, options?: RequestInit) => Promise<any>;
 
 export type SearchOutcome =
-  | { status: 'found'; externalId: string; matchedTitle: string; matchedArtist: string; url: string }
+  | { status: 'found'; externalId: string; matchedTitle: string; matchedArtist: string; url: string; confidence: number }
+  // One or more candidates scored above MIN_REVIEW_THRESHOLD but below AUTO_ACCEPT_THRESHOLD —
+  // sorted best-first, left for the user to pick from instead of guessing.
+  | { status: 'needs_review'; candidates: TrackCandidate[] }
   | { status: 'not_found' }
   | { status: 'rate_limited'; waitSeconds: number }
   | { status: 'quota_exceeded' };

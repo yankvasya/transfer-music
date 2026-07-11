@@ -40,6 +40,7 @@ function makeDestination(createdPlaylists: { name: string }[]): DestinationConne
         externalId: `id-${track.title}`,
         matchedTitle: track.title,
         matchedArtist: track.artist,
+        confidence: 1,
         url: 'https://example.com/track',
       };
     },
