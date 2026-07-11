@@ -254,4 +254,44 @@ describe('ImporterProgress', () => {
     expect(screen.getByText('Matched (1)')).toBeInTheDocument();
     expect(calls.added.flat()).toEqual(['id-1']);
   });
+
+  it('retries every failed track at once via Retry All, without needing individual clicks', async () => {
+    const searchCounts: Record<string, number> = {};
+    const { connector, calls } = makeConnector({
+      searchTrack: async (_api, t) => {
+        searchCounts[t.title] = (searchCounts[t.title] ?? 0) + 1;
+        calls.searched.push(t.title);
+        // Fails on the initial import pass, then succeeds once retried.
+        if (searchCounts[t.title] === 1) {
+          return { status: 'not_found' };
+        }
+        return { status: 'found', externalId: `id-${t.title}`, matchedTitle: t.title, matchedArtist: t.artist, url: 'x', confidence: 1 };
+      },
+    });
+
+    render(
+      <ImporterProgress
+        tracks={[track('A - 1', 'A', '1'), track('A - 2', 'A', '2')]}
+        playlistName="My Playlist"
+        playlistDesc="desc"
+        isPublic={false}
+        apiRequest={noopApiRequest}
+        connector={connector}
+        onRestart={noop}
+        onBackToList={noop}
+        historyId="hist-retry-all"
+        onSaveProgress={noop}
+        onImportComplete={noop}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('Not Found (2)')).toBeInTheDocument());
+
+    const user = (await import('@testing-library/user-event')).default.setup();
+    await user.click(screen.getByText('🔁 Retry All (2)'));
+
+    await waitFor(() => expect(screen.getByText('Matched (2)')).toBeInTheDocument());
+    expect(screen.getByText('Not Found (0)')).toBeInTheDocument();
+    expect(calls.added.flat().sort()).toEqual(['id-1', 'id-2']);
+  });
 });

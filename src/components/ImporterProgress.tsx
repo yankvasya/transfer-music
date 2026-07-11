@@ -594,6 +594,21 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     }
   };
 
+  // Sequential (not parallel) on purpose — this reuses handleRetry's per-track path
+  // one at a time rather than hammering the connector with N concurrent requests, since
+  // these are tracks that already failed once and may be more rate-limit-sensitive.
+  const [retryAllRunning, setRetryAllRunning] = useState(false);
+
+  const handleRetryAll = async () => {
+    if (retryAllRunning) return;
+    setRetryAllRunning(true);
+    const toRetry = [...failedTracksRef.current];
+    for (const item of toRetry) {
+      await handleRetry(item);
+    }
+    setRetryAllRunning(false);
+  };
+
   // Resolving a "Needs Review" track: the user either picks one of the candidates
   // (added immediately, same as a manual re-match) or rejects all of them, which moves
   // it to Not Found so it can be searched manually via the existing retry flow there.
@@ -804,9 +819,16 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           emptyLabel="No missed tracks..."
           headerExtra={
             failedTracks.length > 0 ? (
-              <button className="btn btn-sm btn-outline-danger" onClick={downloadFailedTracks}>
-                ⬇ Download List
-              </button>
+              <>
+                {playlistId && failedTracks.length > 1 && (
+                  <button className="btn btn-sm btn-outline" onClick={handleRetryAll} disabled={retryAllRunning}>
+                    {retryAllRunning ? '🔁 Retrying...' : `🔁 Retry All (${failedTracks.length})`}
+                  </button>
+                )}
+                <button className="btn btn-sm btn-outline-danger" onClick={downloadFailedTracks}>
+                  ⬇ Download List
+                </button>
+              </>
             ) : undefined
           }
           renderItem={(item, idx) => {
@@ -831,7 +853,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
                       type="button"
                       className="btn btn-sm btn-outline"
                       onClick={() => handleRetry(item)}
-                      disabled={status === 'searching'}
+                      disabled={status === 'searching' || retryAllRunning}
                     >
                       {status === 'searching' ? '...' : '🔍 Retry'}
                     </button>
