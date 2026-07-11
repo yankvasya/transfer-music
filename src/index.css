@@ -16,6 +16,7 @@
   --danger-color: #ef4444;
   --warning-color: #f59e0b;
   --success-color: #10b981;
+  --info-color: #3b82f6;
 }
 
 * {
@@ -557,7 +558,7 @@ textarea.form-control {
 
 .stats-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -582,6 +583,10 @@ textarea.form-control {
   border-left: 4px solid var(--warning-color);
 }
 
+.stat-card.info {
+  border-left: 4px solid var(--info-color);
+}
+
 .stat-value {
   font-size: 2.2rem;
   font-weight: 700;
@@ -594,12 +599,16 @@ textarea.form-control {
   margin-top: 0.25rem;
 }
 
-/* Logs and lists */
+/* Logs and lists — 2x2 grid (not one row of 4) so each panel has room to show track
+   lines/candidate lists legibly. */
 .log-container {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.5rem;
   margin-top: 2.5rem;
+}
+
+.log-container .log-panel {
   height: 350px;
 }
 
@@ -673,6 +682,45 @@ textarea.form-control {
 .log-item.warning {
   background: rgba(245, 158, 11, 0.05);
   border: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.log-item.info {
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.candidate-pick-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.candidate-pick-button:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.candidate-pick-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.candidate-confidence {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
 .log-item-raw {

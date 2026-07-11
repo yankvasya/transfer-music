@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { parseTracklist } from '../utils/parser';
 import type { ParsedTrack } from '../utils/parser';
-import type { MatchResult, ResumeData, ServiceId } from '../types';
+import type { ImportSummary, MatchResult, ResumeData, ReviewTrack, TrackCandidate } from '../types';
 import type { ApiRequest, DestinationConnector } from '../connectors/types';
 import { SERVICE_META } from '../serviceMeta';
 
@@ -26,30 +26,23 @@ interface ImporterProgressProps {
   onBackToList: () => void;
   historyId: string;
   resumeFrom?: ResumeData;
-  onSaveProgress: (
-    id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number },
-    resumeData: ResumeData
-  ) => void;
-  onImportComplete: (
-    id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number }
-  ) => void;
+  onSaveProgress: (id: string, summary: ImportSummary, resumeData: ResumeData) => void;
+  onImportComplete: (id: string, summary: ImportSummary) => void;
   // Fires once, a short delay after this run reaches a terminal state (completed or
   // failed) — lets a caller (e.g. a bulk multi-playlist queue) know it's safe to move on,
   // without needing to poll internal status.
   onDone?: () => void;
 }
 
-interface LogPanelProps {
+interface LogPanelProps<T> {
   title: string;
-  items: MatchResult[];
+  items: T[];
   emptyLabel: string;
   headerExtra?: React.ReactNode;
-  renderItem: (item: MatchResult, idx: number) => React.ReactNode;
+  renderItem: (item: T, idx: number) => React.ReactNode;
 }
 
-const LogPanel: React.FC<LogPanelProps> = ({ title, items, emptyLabel, headerExtra, renderItem }) => {
+function LogPanel<T>({ title, items, emptyLabel, headerExtra, renderItem }: LogPanelProps<T>) {
   const [expanded, setExpanded] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const hasMore = items.length > VISIBLE_LIMIT;
@@ -86,7 +79,7 @@ const LogPanel: React.FC<LogPanelProps> = ({ title, items, emptyLabel, headerExt
       )}
     </div>
   );
-};
+}
 
 export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   tracks,
@@ -114,6 +107,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   const [matchedTracks, setMatchedTracks] = useState<MatchResult[]>(resumeFrom?.matchedTracks ?? []);
   const [failedTracks, setFailedTracks] = useState<MatchResult[]>(resumeFrom?.failedTracks ?? []);
   const [duplicateTracks, setDuplicateTracks] = useState<MatchResult[]>(resumeFrom?.duplicateTracks ?? []);
+  const [reviewTracks, setReviewTracks] = useState<ReviewTrack[]>(resumeFrom?.reviewTracks ?? []);
 
   const [currentActionMsg, setCurrentActionMsg] = useState('Initializing...');
 
@@ -127,6 +121,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   const matchedTracksRef = useRef<MatchResult[]>(resumeFrom?.matchedTracks ?? []);
   const failedTracksRef = useRef<MatchResult[]>(resumeFrom?.failedTracks ?? []);
   const duplicateTracksRef = useRef<MatchResult[]>(resumeFrom?.duplicateTracks ?? []);
+  const reviewTracksRef = useRef<ReviewTrack[]>(resumeFrom?.reviewTracks ?? []);
   // Every externalId already claimed by a matched track in this import, so a second input
   // line resolving to the same real track gets skipped instead of added twice.
   const claimedExternalIdsRef = useRef<Set<string>>(
@@ -296,6 +291,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               matched: matchedTracksRef.current.length,
               failed: failedTracksRef.current.length,
               duplicates: duplicateTracksRef.current.length,
+              needsReview: reviewTracksRef.current.length,
               total: tracks.length,
             },
             {
@@ -309,6 +305,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               matchedTracks: matchedTracksRef.current,
               failedTracks: failedTracksRef.current,
               duplicateTracks: duplicateTracksRef.current,
+              reviewTracks: reviewTracksRef.current,
               pendingUris: pendingUrisRef.current,
             }
           );
@@ -383,6 +380,11 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
                   setMatchedTracks(matchedTracksRef.current);
                   pendingUrisRef.current.push(res.externalId);
                 }
+                searchDone = true;
+              } else if (res.status === 'needs_review') {
+                registerSuccess();
+                reviewTracksRef.current = [{ track, candidates: res.candidates }, ...reviewTracksRef.current];
+                setReviewTracks(reviewTracksRef.current);
                 searchDone = true;
               } else {
                 registerSuccess();
@@ -477,6 +479,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
             matched: matchedTracksRef.current.length,
             failed: failedTracksRef.current.length,
             duplicates: duplicateTracksRef.current.length,
+            needsReview: reviewTracksRef.current.length,
             total: tracks.length,
           });
         }
@@ -522,6 +525,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
       matched: matchedTracksRef.current.length,
       failed: failedTracksRef.current.length,
       duplicates: duplicateTracksRef.current.length,
+      needsReview: reviewTracksRef.current.length,
       total: tracks.length,
     });
   };
@@ -583,6 +587,69 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     }
   };
 
+  // Resolving a "Needs Review" track: the user either picks one of the candidates
+  // (added immediately, same as a manual re-match) or rejects all of them, which moves
+  // it to Not Found so it can be searched manually via the existing retry flow there.
+  const [reviewStatus, setReviewStatus] = useState<Record<string, 'idle' | 'busy' | 'error'>>({});
+
+  const handleAcceptCandidate = async (item: ReviewTrack, candidate: TrackCandidate) => {
+    const key = item.track.raw;
+    if (!playlistId) return;
+    setReviewStatus((s) => ({ ...s, [key]: 'busy' }));
+
+    try {
+      const isDuplicate = claimedExternalIdsRef.current.has(candidate.externalId);
+      if (!isDuplicate) {
+        const addRes = await connector.addTracks(apiRequest, playlistId, [candidate.externalId]);
+        if (addRes.status !== 'ok') {
+          setReviewStatus((s) => ({ ...s, [key]: 'error' }));
+          return;
+        }
+        claimedExternalIdsRef.current.add(candidate.externalId);
+      }
+
+      const result: MatchResult = {
+        track: item.track,
+        matchedName: candidate.title,
+        matchedArtist: candidate.artist,
+        externalId: candidate.externalId,
+        url: candidate.url,
+        success: true,
+        isDuplicate,
+      };
+
+      if (isDuplicate) {
+        duplicateTracksRef.current = [result, ...duplicateTracksRef.current];
+        setDuplicateTracks(duplicateTracksRef.current);
+      } else {
+        matchedTracksRef.current = [result, ...matchedTracksRef.current];
+        setMatchedTracks(matchedTracksRef.current);
+      }
+
+      reviewTracksRef.current = reviewTracksRef.current.filter((r) => r.track.raw !== key);
+      setReviewTracks(reviewTracksRef.current);
+      refreshHistorySummary();
+    } catch (err: any) {
+      console.error(`Failed to add reviewed track "${key}":`, err);
+      setReviewStatus((s) => ({ ...s, [key]: 'error' }));
+    }
+  };
+
+  const handleRejectReview = (item: ReviewTrack) => {
+    const key = item.track.raw;
+    reviewTracksRef.current = reviewTracksRef.current.filter((r) => r.track.raw !== key);
+    setReviewTracks(reviewTracksRef.current);
+
+    const result: MatchResult = {
+      track: item.track,
+      success: false,
+      errorReason: 'No confident match — search manually below',
+    };
+    failedTracksRef.current = [result, ...failedTracksRef.current];
+    setFailedTracks(failedTracksRef.current);
+    refreshHistorySummary();
+  };
+
   return (
     <div className="importer-progress-panel glass-panel">
       <h2>🚀 Importing Playlist</h2>
@@ -604,6 +671,10 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         <div className="stat-card success">
           <div className="stat-value">{matchedTracks.length}</div>
           <div className="stat-label">Successfully Matched</div>
+        </div>
+        <div className="stat-card info">
+          <div className="stat-value">{reviewTracks.length}</div>
+          <div className="stat-label">Needs Review</div>
         </div>
         <div className="stat-card warning">
           <div className="stat-value">{duplicateTracks.length}</div>
@@ -668,6 +739,39 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
               </a>
             </div>
           )}
+        />
+
+        <LogPanel
+          title="Needs Review"
+          items={reviewTracks}
+          emptyLabel="No uncertain matches..."
+          renderItem={(item, idx) => {
+            const key = item.track.raw;
+            const busy = reviewStatus[key] === 'busy';
+            return (
+              <div key={idx} className="log-item info" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}>
+                <span className="log-item-raw">{item.track.raw}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  {item.candidates.map((candidate, cIdx) => (
+                    <button
+                      key={cIdx}
+                      type="button"
+                      className="candidate-pick-button"
+                      onClick={() => handleAcceptCandidate(item, candidate)}
+                      disabled={busy}
+                    >
+                      <span>{candidate.artist} - {candidate.title}</span>
+                      <span className="candidate-confidence">{Math.round(candidate.confidence * 100)}%</span>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleRejectReview(item)} disabled={busy}>
+                  None of these
+                </button>
+                {reviewStatus[key] === 'error' && <span className="log-item-error">Failed to add — try again.</span>}
+              </div>
+            );
+          }}
         />
 
         <LogPanel

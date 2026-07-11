@@ -5,7 +5,7 @@ import { SERVICE_META } from '../serviceMeta';
 import { parseTracklist } from '../utils/parser';
 import type { ParsedTrack } from '../utils/parser';
 import type { ApiRequest, DestinationConnector, SourceConnector } from '../connectors/types';
-import type { ResumeData, ServiceId } from '../types';
+import type { ImportSummary, ResumeData, ServiceId } from '../types';
 
 interface BridgeQueueProps {
   to: ServiceId;
@@ -14,18 +14,9 @@ interface BridgeQueueProps {
   destination: DestinationConnector;
   sourceApiRequest: ApiRequest;
   destApiRequest: ApiRequest;
-  onSaveProgress: (
-    id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number },
-    resumeData: ResumeData
-  ) => void;
-  onImportComplete: (
-    id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number }
-  ) => void;
+  onSaveProgress: (id: string, summary: ImportSummary, resumeData: ResumeData) => void;
+  onImportComplete: (id: string, summary: ImportSummary) => void;
 }
-
-type ItemSummary = { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number };
 
 // Drives one or more source playlists through the existing single-playlist import
 // pipeline (ImporterProgress) sequentially, rather than building a separate bulk-import
@@ -51,7 +42,7 @@ export const BridgeQueue: React.FC<BridgeQueueProps> = ({
 
   const advance = () => setIndex((i) => i + 1);
 
-  const handleItemComplete = (id: string, summary: ItemSummary) => {
+  const handleItemComplete = (id: string, summary: ImportSummary) => {
     onImportComplete(id, summary);
     setCompleted((prev) => [...prev, { name: summary.name, url: summary.url }]);
   };
@@ -112,7 +103,7 @@ interface BridgeQueueItemProps {
   sourceApiRequest: ApiRequest;
   destApiRequest: ApiRequest;
   onSaveProgress: BridgeQueueProps['onSaveProgress'];
-  onImportComplete: (id: string, summary: ItemSummary) => void;
+  onImportComplete: (id: string, summary: ImportSummary) => void;
   onAdvance: () => void;
   onStop: () => void;
 }

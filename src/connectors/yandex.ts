@@ -1,4 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
+import { selectMatch } from '../utils/matching';
 
 // Yandex's playlist mutation endpoint identifies a track by BOTH its id and its album id
 // (no fallback if album id is omitted), but this app's connector interfaces only carry a
@@ -59,18 +60,19 @@ export const yandexDestination: DestinationConnector = {
 
     const results = res?.tracks?.results || [];
     // Playlist mutation needs an album id alongside the track id, so skip any result
-    // that doesn't have one (or is marked unavailable).
-    const match = results.find((t: any) => t.available !== false && t.albums?.[0]?.id != null);
-    if (!match) return { status: 'not_found' };
+    // that doesn't have one (or is marked unavailable) before it's even a candidate.
+    const usable = results.filter((t: any) => t.available !== false && t.albums?.[0]?.id != null);
+    const candidates = usable.map((t: any) => {
+      const albumId = t.albums[0].id;
+      return {
+        externalId: packTrackId(t.id, albumId),
+        title: t.title,
+        artist: (t.artists || []).map((a: any) => a.name).join(', '),
+        url: `https://music.yandex.ru/album/${albumId}/track/${t.id}`,
+      };
+    });
 
-    const albumId = match.albums[0].id;
-    return {
-      status: 'found',
-      externalId: packTrackId(match.id, albumId),
-      matchedTitle: match.title,
-      matchedArtist: (match.artists || []).map((a: any) => a.name).join(', '),
-      url: `https://music.yandex.ru/album/${albumId}/track/${match.id}`,
-    };
+    return selectMatch(track, candidates);
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {

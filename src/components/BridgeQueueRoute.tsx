@@ -7,20 +7,13 @@ import { SOURCES, DESTINATIONS } from '../connectors';
 import { SERVICE_META } from '../serviceMeta';
 import type { ServiceAuth } from '../serviceMeta';
 import { resolveService } from '../utils/resolveService';
-import type { ResumeData, ServiceId } from '../types';
+import type { ImportSummary, ResumeData, ServiceId } from '../types';
 
 interface BridgeQueueRouteProps {
   authByService: Record<ServiceId, ServiceAuth>;
   renderLoginUI: (service: ServiceId) => ReactNode;
-  onSaveProgress: (
-    id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number },
-    resumeData: ResumeData
-  ) => void;
-  onImportComplete: (
-    id: string,
-    summary: { service: ServiceId; name: string; url: string; matched: number; failed: number; duplicates: number; total: number }
-  ) => void;
+  onSaveProgress: (id: string, summary: ImportSummary, resumeData: ResumeData) => void;
+  onImportComplete: (id: string, summary: ImportSummary) => void;
 }
 
 export const BridgeQueueRoute: React.FC<BridgeQueueRouteProps> = ({

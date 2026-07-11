@@ -26,13 +26,29 @@ describe('deezerDestination.searchTrack', () => {
     }));
 
     const result = await deezerDestination.searchTrack(apiRequest, makeTrack('Artist - Song', 'Artist', 'Song'));
-    expect(result).toEqual({ status: 'found', externalId: '123', matchedTitle: 'Song', matchedArtist: 'Artist', url: 'https://deezer.com/track/123' });
+    expect(result).toEqual({ status: 'found', externalId: '123', matchedTitle: 'Song', matchedArtist: 'Artist', url: 'https://deezer.com/track/123', confidence: 1 });
   });
 
   it('skips unreadable results', async () => {
     const { apiRequest } = createMockApiRequest(() => ({ data: [{ id: 1, title: 'X', readable: false }] }));
     const result = await deezerDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
     expect(result).toEqual({ status: 'not_found' });
+  });
+
+  it('returns needs_review with multiple candidates when nothing is confident enough to auto-accept', async () => {
+    const { apiRequest } = createMockApiRequest(() => ({
+      data: [
+        { id: 1, title: 'Song', artist: { name: 'Cover Artist' }, link: 'x', readable: true },
+        { id: 2, title: 'Song Live', artist: { name: 'Cover Artist' }, link: 'y', readable: true },
+      ],
+    }));
+
+    const result = await deezerDestination.searchTrack(apiRequest, makeTrack('Original Artist - Song', 'Original Artist', 'Song'));
+
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('1');
+    }
   });
 });
 
