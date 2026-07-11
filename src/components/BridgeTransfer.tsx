@@ -23,6 +23,7 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -57,11 +58,24 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source
     });
   };
 
-  const exportablePlaylists = playlists.filter((p) => p.exportable);
+  const visiblePlaylists = search.trim()
+    ? playlists.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : playlists;
+  const exportablePlaylists = visiblePlaylists.filter((p) => p.exportable);
+  // Scoped to what's currently visible under the search filter, not every playlist ever
+  // loaded — "Select All" while searching means "all of these matches", not silently
+  // pulling in playlists the user has filtered out of view.
   const allSelected = exportablePlaylists.length > 0 && exportablePlaylists.every((p) => selected.has(p.id));
 
   const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(exportablePlaylists.map((p) => p.id)));
+    setSelected((prev) => {
+      if (allSelected) {
+        const next = new Set(prev);
+        exportablePlaylists.forEach((p) => next.delete(p.id));
+        return next;
+      }
+      return new Set([...prev, ...exportablePlaylists.map((p) => p.id)]);
+    });
   };
 
   const handleContinue = () => {
@@ -100,6 +114,17 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source
         Pick one or more {source.label} playlists to transfer directly into {toMeta.name}.
       </p>
 
+      {playlists.length > 5 && (
+        <input
+          type="text"
+          className="form-control"
+          style={{ marginBottom: '0.75rem' }}
+          placeholder={`Search ${source.label} playlists...`}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      )}
+
       {exportablePlaylists.length > 1 && (
         <div className="form-actions" style={{ justifyContent: 'flex-start', marginBottom: '0.75rem' }}>
           <button type="button" className="btn btn-sm btn-outline" onClick={toggleAll}>
@@ -110,9 +135,11 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source
 
       {playlists.length === 0 ? (
         <div className="empty-log">You don't have any playlists yet.</div>
+      ) : visiblePlaylists.length === 0 ? (
+        <div className="empty-log">No playlists match "{search.trim()}".</div>
       ) : (
         <div className="log-list history-list">
-          {playlists.map((playlist) => (
+          {visiblePlaylists.map((playlist) => (
             <div key={playlist.id} className="log-item history-item playlist-pick-item">
               {playlist.exportable ? (
                 <button

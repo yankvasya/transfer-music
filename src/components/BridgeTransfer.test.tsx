@@ -50,4 +50,36 @@ describe('BridgeTransfer', () => {
     await waitFor(() => expect(screen.getByText('Move Playlists →')).toBeInTheDocument());
     expect((screen.getByText('Move Playlists →') as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it('filters the list by search, scopes Select All to the filtered matches, and keeps prior selections when the filter clears', async () => {
+    const manyPlaylists: PlaylistSummary[] = [
+      ...PLAYLISTS,
+      { id: 'p5', name: 'Road Trip Rock', trackCount: 20, externalUrl: 'https://example.com/p5', exportable: true },
+      { id: 'p6', name: 'Chill Rock Sunday', trackCount: 15, externalUrl: 'https://example.com/p6', exportable: true },
+    ];
+    const source: SourceConnector = { ...makeSource(), async listPlaylists() { return manyPlaylists; } };
+
+    render(
+      <MemoryRouter>
+        <BridgeTransfer from="spotify" to="deezer" source={source} sourceApiRequest={vi.fn()} sourceCurrentUserId="me" />
+      </MemoryRouter>
+    );
+
+    const user = userEvent.setup();
+    const search = await screen.findByPlaceholderText('Search Spotify playlists...');
+    await user.type(search, 'rock');
+
+    // Only the two "rock" matches remain, and Select All's count reflects just those.
+    await waitFor(() => expect(screen.getByText('Select All (2)')).toBeInTheDocument());
+    expect(screen.queryByText('Playlist A')).not.toBeInTheDocument();
+    expect(screen.getByText('Road Trip Rock')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Select All (2)'));
+    await waitFor(() => expect(screen.getByText('Move 2 Playlists →')).toBeInTheDocument());
+
+    // Clearing the filter brings the rest back, and the 2 rock playlists are still selected.
+    await user.clear(search);
+    await waitFor(() => expect(screen.getByText('Playlist A')).toBeInTheDocument());
+    expect(screen.getByText('Move 2 Playlists →')).toBeInTheDocument();
+  });
 });
