@@ -52,7 +52,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
                       Open in {meta.name}
                     </a>
                   )}
-                  <button className="btn btn-sm btn-outline-danger" onClick={() => onDelete(entry.id)}>
+                  <button
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => {
+                      if (confirm(`Remove "${entry.name}" from your import history? This won't affect the playlist itself.`)) {
+                        onDelete(entry.id);
+                      }
+                    }}
+                  >
                     ✕
                   </button>
                 </div>
