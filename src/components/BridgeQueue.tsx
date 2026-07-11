@@ -127,7 +127,19 @@ const BridgeQueueItem: React.FC<BridgeQueueItemProps> = ({
   const [currentName, setCurrentName] = useState('');
   const [tracksForCurrent, setTracksForCurrent] = useState<ParsedTrack[] | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [connectorExhausted, setConnectorExhausted] = useState(false);
   const historyId = useMemo(() => crypto.randomUUID(), []);
+
+  // 'stopped' means this playlist hit a connector-wide quota/rate-limit exhaustion, not a
+  // one-off failure — auto-advancing would almost certainly hit the same wall on the next
+  // playlist too, so pause the queue here instead and let the user decide.
+  const handleItemDone = (status: 'completed' | 'failed' | 'stopped') => {
+    if (status === 'stopped') {
+      setConnectorExhausted(true);
+    } else {
+      onAdvance();
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -200,8 +212,26 @@ const BridgeQueueItem: React.FC<BridgeQueueItemProps> = ({
         historyId={historyId}
         onSaveProgress={onSaveProgress}
         onImportComplete={onImportComplete}
-        onDone={onAdvance}
+        onDone={handleItemDone}
       />
+      {connectorExhausted && (
+        <div className="glass-panel center-align" style={{ marginTop: '1.5rem' }}>
+          <p className="description-text">
+            This playlist stopped early (see the message above) — since it's usually a connector-wide limit, the rest of the
+            queue would likely hit it immediately too.
+          </p>
+          <div className="form-actions center-align">
+            <button className="btn btn-secondary" onClick={onStop}>
+              ← Stop Queue
+            </button>
+            {index + 1 < total && (
+              <button className="btn btn-outline" onClick={onAdvance}>
+                Skip to Next Playlist →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

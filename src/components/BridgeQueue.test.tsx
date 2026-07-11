@@ -79,4 +79,43 @@ describe('BridgeQueue', () => {
 
     expect(createdPlaylists).toEqual([{ name: 'Playlist A' }, { name: 'Playlist B' }]);
   });
+
+  // A connector-wide quota/rate-limit exhaustion on one item will almost certainly hit
+  // the next item immediately too, so the queue must pause and let the user decide
+  // rather than silently burning through the rest of the queue.
+  it('pauses instead of auto-advancing when a playlist stops due to connector quota exhaustion', async () => {
+    const createdPlaylists: { name: string }[] = [];
+    const destination = makeDestination(createdPlaylists);
+    const exhaustedDestination: DestinationConnector = {
+      ...destination,
+      async searchTrack() {
+        return { status: 'quota_exceeded' };
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <BridgeQueue
+          to="deezer"
+          playlistIds={['p1', 'p2']}
+          source={makeSource()}
+          destination={exhaustedDestination}
+          sourceApiRequest={vi.fn()}
+          destApiRequest={vi.fn()}
+          onSaveProgress={vi.fn()}
+          onImportComplete={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    // onDone (which flips connectorExhausted) fires 1.5s after ImporterProgress reaches
+    // its terminal status, so this needs a longer timeout than the default 1000ms.
+    await waitFor(() => expect(screen.getByText(/stopped early/)).toBeInTheDocument(), { timeout: 3000 });
+
+    // Only the first playlist's destination playlist was created — the queue paused
+    // rather than silently moving on to the second, which would hit the same quota wall.
+    expect(createdPlaylists).toEqual([{ name: 'Playlist A' }]);
+    expect(screen.getByText('← Stop Queue')).toBeInTheDocument();
+    expect(screen.getByText('Skip to Next Playlist →')).toBeInTheDocument();
+  });
 });

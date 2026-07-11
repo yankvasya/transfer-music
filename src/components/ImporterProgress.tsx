@@ -28,10 +28,12 @@ interface ImporterProgressProps {
   resumeFrom?: ResumeData;
   onSaveProgress: (id: string, summary: ImportSummary, resumeData: ResumeData) => void;
   onImportComplete: (id: string, summary: ImportSummary) => void;
-  // Fires once, a short delay after this run reaches a terminal state (completed or
-  // failed) — lets a caller (e.g. a bulk multi-playlist queue) know it's safe to move on,
-  // without needing to poll internal status.
-  onDone?: () => void;
+  // Fires once, a short delay after this run reaches a terminal state — lets a caller
+  // (e.g. a bulk multi-playlist queue) react without polling internal status. 'stopped'
+  // (quota/rate-limit exhaustion) is reported separately from 'completed' because it is
+  // NOT safe to treat as "move on to the next item": the same connector-wide limit will
+  // very likely hit the next item immediately too.
+  onDone?: (status: 'completed' | 'failed' | 'stopped') => void;
 }
 
 interface LogPanelProps<T> {
@@ -96,7 +98,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   onImportComplete,
   onDone,
 }) => {
-  const [status, setStatus] = useState<'creating' | 'importing' | 'paused' | 'completed' | 'failed'>('creating');
+  const [status, setStatus] = useState<'creating' | 'importing' | 'paused' | 'completed' | 'failed' | 'stopped'>('creating');
   const [progress, setProgress] = useState(0); // 0 to 100
   const [currentIndex, setCurrentIndex] = useState(resumeFrom?.startIndex ?? 0);
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(resumeFrom?.playlistUrl ?? null);
@@ -455,7 +457,11 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
         if (isCancelledRef.current) {
           persistProgress();
-          setStatus('completed');
+          // A connector-wide quota/rate-limit exhaustion will very likely hit the next
+          // item too, unlike a user-initiated stop of just this one playlist — kept as
+          // its own status so callers (the bulk queue) don't treat it as safe to move on.
+          const exhausted = stopReasonRef.current === 'quota_exceeded' || stopReasonRef.current === 'rate_limit';
+          setStatus(exhausted ? 'stopped' : 'completed');
           if (stopReasonRef.current === 'quota_exceeded') {
             setCurrentActionMsg(
               `Stopped: ${connector.label}'s daily API quota ran out. This resets on its own (YouTube resets at midnight Pacific Time) — your progress is saved, resume from History once it clears.`
@@ -503,9 +509,10 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   // Notifies a caller (e.g. a bulk queue) once this run is truly finished. A short delay
   // gives the completed/failed screen a moment to actually be seen before advancing.
   useEffect(() => {
-    if (status !== 'completed' && status !== 'failed') return;
+    if (status !== 'completed' && status !== 'failed' && status !== 'stopped') return;
     if (!onDone) return;
-    const timer = setTimeout(onDone, 1500);
+    const finalStatus = status;
+    const timer = setTimeout(() => onDone(finalStatus), 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -699,10 +706,12 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
       )}
 
       {/* Complete/Failed Screen */}
-      {(status === 'completed' || status === 'failed') && (
+      {(status === 'completed' || status === 'failed' || status === 'stopped') && (
         <div className="completion-card">
           {status === 'completed' ? (
             <div className="badge-wrapper success">🎉 Done!</div>
+          ) : status === 'stopped' ? (
+            <div className="badge-wrapper warning">⏸ Stopped</div>
           ) : (
             <div className="badge-wrapper danger">❌ Failed</div>
           )}

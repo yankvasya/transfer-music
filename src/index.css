@@ -786,6 +786,10 @@ textarea.form-control {
   color: var(--accent-color);
 }
 
+.badge-wrapper.warning {
+  color: var(--warning-color);
+}
+
 .completion-playlist-name {
   color: var(--text-secondary);
   font-size: 1.1rem;
