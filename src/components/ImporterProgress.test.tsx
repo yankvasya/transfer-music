@@ -294,4 +294,39 @@ describe('ImporterProgress', () => {
     expect(screen.getByText('Not Found (0)')).toBeInTheDocument();
     expect(calls.added.flat().sort()).toEqual(['id-1', 'id-2']);
   });
+
+  it('persists an accurate resumable checkpoint when addTracks throws mid-import (e.g. the destination playlist hit its max size)', async () => {
+    const { connector } = makeConnector({
+      addTracks: async () => {
+        throw new Error('Spotify API error [403]: playlist reached its maximum size');
+      },
+    });
+    const onSaveProgress = vi.fn();
+
+    render(
+      <ImporterProgress
+        tracks={[track('A - 1', 'A', '1'), track('A - 2', 'A', '2')]}
+        playlistName="My Playlist"
+        playlistDesc="desc"
+        isPublic={false}
+        apiRequest={noopApiRequest}
+        connector={connector}
+        onRestart={noop}
+        onBackToList={noop}
+        historyId="hist-crash-mid-flush"
+        onSaveProgress={onSaveProgress}
+        onImportComplete={noop}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText(/Critical Error/)).toBeInTheDocument());
+
+    expect(onSaveProgress).toHaveBeenCalled();
+    const [, , resumeData] = onSaveProgress.mock.calls[onSaveProgress.mock.calls.length - 1];
+    // Both tracks were found by search before the add failed — the checkpoint must still
+    // carry them as pending so they get retried on resume, not silently dropped.
+    expect(resumeData.matchedTracks).toHaveLength(2);
+    expect(resumeData.pendingUris.sort()).toEqual(['id-1', 'id-2']);
+    expect(resumeData.playlistId).toBe('pl1');
+  });
 });

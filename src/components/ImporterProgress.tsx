@@ -130,6 +130,12 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     new Set((resumeFrom?.matchedTracks ?? []).map((m) => m.externalId).filter((id): id is string => !!id))
   );
   const importIdRef = useRef(historyId);
+  // Mirrors playlistId/playlistUrl state for the same reason as the refs above, plus one
+  // more: they need to be readable from startImport's catch block, which — being a
+  // sibling block to the try, not nested inside it — can't see the try-scoped local
+  // `playlistId`/`url` variables at all.
+  const playlistIdRef = useRef<string | null>(resumeFrom?.playlistId ?? null);
+  const playlistUrlRef = useRef<string | null>(resumeFrom?.playlistUrl ?? null);
 
   // Toggle pause state
   const handlePauseToggle = () => {
@@ -181,6 +187,48 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     };
 
     const startImport = async () => {
+      // Declared before the try so both the main loop and the catch block below can reach
+      // them — a crash partway through (e.g. the destination playlist hit its max size)
+      // should still leave an accurate, immediately resumable History entry rather than
+      // relying on whatever the last periodic checkpoint happened to catch.
+      const doneFlags = new Array<boolean>(tracks.length).fill(false);
+      for (let i = 0; i < (resumeFrom?.startIndex ?? 0); i++) doneFlags[i] = true;
+      const computeSafeStartIndex = () => {
+        let i = 0;
+        while (i < doneFlags.length && doneFlags[i]) i++;
+        return i;
+      };
+      const persistProgress = () => {
+        if (!playlistIdRef.current || !playlistUrlRef.current) return;
+        onSaveProgress(
+          importIdRef.current,
+          {
+            service: connector.id,
+            name: playlistName,
+            url: playlistUrlRef.current,
+            matched: matchedTracksRef.current.length,
+            failed: failedTracksRef.current.length,
+            duplicates: duplicateTracksRef.current.length,
+            needsReview: reviewTracksRef.current.length,
+            total: tracks.length,
+          },
+          {
+            service: connector.id,
+            playlistId: playlistIdRef.current,
+            playlistUrl: playlistUrlRef.current,
+            playlistDesc,
+            isPublic,
+            tracks,
+            startIndex: computeSafeStartIndex(),
+            matchedTracks: matchedTracksRef.current,
+            failedTracks: failedTracksRef.current,
+            duplicateTracks: duplicateTracksRef.current,
+            reviewTracks: reviewTracksRef.current,
+            pendingUris: pendingUrisRef.current,
+          }
+        );
+      };
+
       try {
         let playlistId: string;
         let url: string;
@@ -188,6 +236,8 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         if (resumeFrom) {
           playlistId = resumeFrom.playlistId;
           url = resumeFrom.playlistUrl;
+          playlistIdRef.current = playlistId;
+          playlistUrlRef.current = url;
           setPlaylistUrl(url);
           setPlaylistId(playlistId);
           setStatus('importing');
@@ -204,22 +254,12 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           if (!active || isCancelledRef.current) return;
           playlistId = playlistData.id;
           url = playlistData.url;
+          playlistIdRef.current = playlistId;
+          playlistUrlRef.current = url;
           setPlaylistUrl(url);
           setPlaylistId(playlistId);
           setStatus('importing');
         }
-
-        // Tracks the safe-to-resume prefix: index i is only "done" once its search+add
-        // has actually completed, which (under concurrency) isn't the same as "highest
-        // index claimed". Resuming from a contiguous done-prefix means we never silently
-        // skip a track that was merely in-flight when the tab closed.
-        const doneFlags = new Array<boolean>(tracks.length).fill(false);
-        for (let i = 0; i < (resumeFrom?.startIndex ?? 0); i++) doneFlags[i] = true;
-        const computeSafeStartIndex = () => {
-          let i = 0;
-          while (i < doneFlags.length && doneFlags[i]) i++;
-          return i;
-        };
 
         // Shared across all concurrent workers: how many rate-limited responses have come
         // back in a row (reset on any successful request). Once it crosses the threshold,
@@ -256,7 +296,17 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
             await waitWhilePaused();
             if (!active || isCancelledRef.current) break;
 
-            const res = await connector.addTracks(apiRequest, playlistId, urisToAdd);
+            let res;
+            try {
+              res = await connector.addTracks(apiRequest, playlistId, urisToAdd);
+            } catch (err) {
+              // A hard failure here (e.g. the destination playlist rejected the add because
+              // it hit its own max size) throws rather than returning a status — restore the
+              // batch before propagating so the crash-time checkpoint the outer catch saves
+              // still has these tracks in pendingUris instead of silently losing them.
+              pendingUrisRef.current = [...urisToAdd, ...pendingUrisRef.current];
+              throw err;
+            }
 
             if (res.status === 'quota_exceeded') {
               registerQuotaExceeded();
@@ -281,36 +331,6 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
             // isn't silently lost; it'll be retried on the next flush or on resume.
             pendingUrisRef.current = [...urisToAdd, ...pendingUrisRef.current];
           }
-        };
-
-        const persistProgress = () => {
-          onSaveProgress(
-            importIdRef.current,
-            {
-              service: connector.id,
-              name: playlistName,
-              url,
-              matched: matchedTracksRef.current.length,
-              failed: failedTracksRef.current.length,
-              duplicates: duplicateTracksRef.current.length,
-              needsReview: reviewTracksRef.current.length,
-              total: tracks.length,
-            },
-            {
-              service: connector.id,
-              playlistId,
-              playlistUrl: url,
-              playlistDesc,
-              isPublic,
-              tracks,
-              startIndex: computeSafeStartIndex(),
-              matchedTracks: matchedTracksRef.current,
-              failedTracks: failedTracksRef.current,
-              duplicateTracks: duplicateTracksRef.current,
-              reviewTracks: reviewTracksRef.current,
-              pendingUris: pendingUrisRef.current,
-            }
-          );
         };
 
         // If we're resuming with a leftover unflushed batch, get it onto the playlist
@@ -492,6 +512,12 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
       } catch (err: any) {
         console.error('Import failed with critical error:', err);
         if (active) {
+          // The playlist may already have several batches successfully added — e.g. this
+          // is exactly what happens if the destination service rejects further adds
+          // because the playlist hit its own max size. Persist an up-to-date checkpoint
+          // (not just whatever the last periodic save happened to catch) so this shows up
+          // in History as resumable instead of just vanishing as a dead-end error.
+          persistProgress();
           setStatus('failed');
           setCurrentActionMsg(`Critical Error: ${err.message || 'Something went wrong.'}`);
         }
