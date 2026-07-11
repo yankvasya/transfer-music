@@ -57,6 +57,13 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source
     });
   };
 
+  const exportablePlaylists = playlists.filter((p) => p.exportable);
+  const allSelected = exportablePlaylists.length > 0 && exportablePlaylists.every((p) => selected.has(p.id));
+
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(exportablePlaylists.map((p) => p.id)));
+  };
+
   const handleContinue = () => {
     if (selected.size === 0) return;
     navigate(`/bridge-queue?from=${from}&to=${to}&playlist_ids=${Array.from(selected).join(',')}`);
@@ -92,6 +99,14 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source
       <p className="description-text">
         Pick one or more {source.label} playlists to transfer directly into {toMeta.name}.
       </p>
+
+      {exportablePlaylists.length > 1 && (
+        <div className="form-actions" style={{ justifyContent: 'flex-start', marginBottom: '0.75rem' }}>
+          <button type="button" className="btn btn-sm btn-outline" onClick={toggleAll}>
+            {allSelected ? 'Deselect All' : `Select All (${exportablePlaylists.length})`}
+          </button>
+        </div>
+      )}
 
       {playlists.length === 0 ? (
         <div className="empty-log">You don't have any playlists yet.</div>
