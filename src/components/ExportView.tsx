@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ApiRequest, PlaylistSummary, SourceConnector } from '../connectors/types';
+import { parseTracklist } from '../utils/parser';
 
 interface ExportViewProps {
   source: SourceConnector;
@@ -101,16 +102,27 @@ export const ExportView: React.FC<ExportViewProps> = ({ source, apiRequest, curr
     setTimeout(() => setCopyStatus('idle'), 2500);
   };
 
-  const handleDownload = () => {
-    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+  const downloadBlob = (content: string, mimeType: string, extension: string) => {
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${selectedName.replace(/\s+/g, '_')}.txt`);
+    link.setAttribute('download', `${selectedName.replace(/\s+/g, '_')}.${extension}`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownload = () => downloadBlob(textContent, 'text/plain;charset=utf-8', 'txt');
+
+  const handleDownloadCsv = () => {
+    // Reuses the same "Artist - Title" split already used on the import side, since every
+    // connector writes lines in that exact format — no separate parsing logic needed.
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const rows = parseTracklist(textContent).map((t) => `${escapeCsv(t.artist)},${escapeCsv(t.title)}`);
+    const csv = ['Artist,Title', ...rows].join('\r\n');
+    downloadBlob(csv, 'text/csv;charset=utf-8', 'csv');
   };
 
   if (step === 'loading-playlists') {
@@ -216,6 +228,9 @@ export const ExportView: React.FC<ExportViewProps> = ({ source, apiRequest, curr
         </button>
         <button className="btn btn-success" onClick={handleDownload}>
           ⬇ Download .txt
+        </button>
+        <button className="btn btn-success" onClick={handleDownloadCsv}>
+          ⬇ Download .csv
         </button>
       </div>
     </div>

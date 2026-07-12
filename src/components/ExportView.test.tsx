@@ -77,6 +77,33 @@ describe('ExportView', () => {
     vi.restoreAllMocks();
   });
 
+  it('downloads a CSV with Artist/Title columns split from the tracklist', async () => {
+    const user = userEvent.setup();
+    let capturedBlob: Blob | null = null;
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      capturedBlob = blob as Blob;
+      return 'blob:mock';
+    });
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+    render(
+      <MemoryRouter initialEntries={['/export?type=spotify&playlist_id=p1']}>
+        <ExportView source={makeSource()} apiRequest={vi.fn()} currentUserId="me" />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('⬇ Download .csv')).toBeInTheDocument());
+    await user.click(screen.getByText('⬇ Download .csv'));
+
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(capturedBlob!.type).toContain('text/csv');
+    const text = await capturedBlob!.text();
+    expect(text).toBe('Artist,Title\r\n"Artist A","Song A"\r\n"Artist B","Song B"');
+
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
   it('shows an error screen when loading the playlist fails', async () => {
     const source: SourceConnector = {
       ...makeSource(),
