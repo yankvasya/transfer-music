@@ -85,5 +85,27 @@ export function useHistory() {
     });
   }, []);
 
-  return { history, saveProgress, completeEntry, removeEntry };
+  // Restores entries from a previously exported backup (see HistoryView's Export/Import
+  // History buttons) — the only way anything here survives clearing site data or moving
+  // to a different browser, since this is all localStorage with no backend. Imported
+  // entries win on an id collision (treated as "this backup is the source of truth"),
+  // and anything that doesn't look like a real entry is silently dropped rather than
+  // corrupting the rest of history.
+  const restoreHistory = useCallback((entries: unknown[]): number => {
+    const valid = entries.filter(
+      (e): e is HistoryEntry => !!e && typeof e === 'object' && typeof (e as any).id === 'string' && typeof (e as any).service === 'string'
+    );
+    if (valid.length === 0) return 0;
+
+    setHistory((prev) => {
+      const byId = new Map(prev.map((h) => [h.id, h]));
+      for (const entry of valid) byId.set(entry.id, entry);
+      const next = Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
+      trySetHistory(next);
+      return next;
+    });
+    return valid.length;
+  }, []);
+
+  return { history, saveProgress, completeEntry, removeEntry, restoreHistory };
 }

@@ -33,7 +33,7 @@ function App() {
   const youtube = useYouTube();
   const yandex = useYandexMusic();
   const deezer = useDeezer();
-  const { history, saveProgress, completeEntry, removeEntry } = useHistory();
+  const { history, saveProgress, completeEntry, removeEntry, restoreHistory } = useHistory();
   const navigate = useNavigate();
 
   // Shown once, on a genuine first visit — every existing "back to start" navigation
@@ -309,6 +309,7 @@ function App() {
                   onBack={() => navigate('/')}
                   onResume={handleResumeImport}
                   onDelete={removeEntry}
+                  onImportHistory={restoreHistory}
                 />
               }
             />
