@@ -54,12 +54,14 @@ export const SourceDestinationSelect: React.FC<SourceDestinationSelectProps> = (
 
       <div className="connector-picker">
         <div className="connector-column">
-          <h4>From</h4>
-          <div className="connector-grid">
+          <h4 id="connector-from-label">From</h4>
+          <div className="connector-grid" role="radiogroup" aria-labelledby="connector-from-label">
             {CONNECTORS.map((connector) => (
               <button
                 key={connector.id}
                 type="button"
+                role="radio"
+                aria-checked={from === connector.id}
                 className={`connector-tile${from === connector.id ? ' active' : ''}`}
                 onClick={() => handleSelectFrom(connector.id)}
               >
@@ -73,12 +75,14 @@ export const SourceDestinationSelect: React.FC<SourceDestinationSelectProps> = (
         <div className="connector-arrow">→</div>
 
         <div className="connector-column">
-          <h4>To</h4>
-          <div className="connector-grid">
+          <h4 id="connector-to-label">To</h4>
+          <div className="connector-grid" role="radiogroup" aria-labelledby="connector-to-label">
             {CONNECTORS.map((connector) => (
               <button
                 key={connector.id}
                 type="button"
+                role="radio"
+                aria-checked={to === connector.id}
                 className={`connector-tile${to === connector.id ? ' active' : ''}`}
                 onClick={() => handleSelectTo(connector.id)}
               >
