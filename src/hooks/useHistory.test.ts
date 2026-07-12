@@ -46,4 +46,39 @@ describe('useHistory', () => {
     expect(result.current.history).toHaveLength(0);
     expect(JSON.parse(localStorage.getItem('transfer_music_history')!)).toHaveLength(0);
   });
+
+  it('restoreHistory merges a backup, overwrites on id collision, and drops entries missing id/service', () => {
+    const { result } = renderHook(() => useHistory());
+
+    act(() => {
+      result.current.completeEntry('existing', { ...SUMMARY, name: 'Old Name' });
+    });
+
+    let restoredCount = 0;
+    act(() => {
+      restoredCount = result.current.restoreHistory([
+        { ...SUMMARY, id: 'existing', name: 'Restored Name', createdAt: 1, status: 'completed' },
+        { ...SUMMARY, id: 'brand-new', name: 'New Entry', createdAt: 2, status: 'completed' },
+        { name: 'Missing id/service' }, // invalid — should be dropped, not crash
+        null,
+      ]);
+    });
+
+    expect(restoredCount).toBe(2);
+    expect(result.current.history).toHaveLength(2);
+    expect(result.current.history.find((h) => h.id === 'existing')?.name).toBe('Restored Name');
+    expect(result.current.history.find((h) => h.id === 'brand-new')?.name).toBe('New Entry');
+  });
+
+  it('restoreHistory returns 0 and leaves history untouched when nothing in the file is valid', () => {
+    const { result } = renderHook(() => useHistory());
+
+    let restoredCount = 1;
+    act(() => {
+      restoredCount = result.current.restoreHistory([{ foo: 'bar' }, 42, 'not an entry']);
+    });
+
+    expect(restoredCount).toBe(0);
+    expect(result.current.history).toHaveLength(0);
+  });
 });
