@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTokenStorage } from './useTokenStorage';
 
 const AUTH_PROXY = '/api/yandex-auth';
 const DATA_PROXY = '/api/yandex-data';
@@ -21,12 +22,7 @@ export interface YandexDeviceCode {
 // since api.music.yandex.net sends no CORS headers and can't be called directly from
 // the browser (verified directly, not assumed).
 export function useYandexMusic() {
-  const [accessToken, setAccessToken] = useState<string | null>(() => localStorage.getItem('yandex_access_token'));
-  const [refreshToken, setRefreshToken] = useState<string | null>(() => localStorage.getItem('yandex_refresh_token'));
-  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => {
-    const expiry = localStorage.getItem('yandex_token_expiry');
-    return expiry ? parseInt(expiry, 10) : null;
-  });
+  const { accessToken, refreshToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('yandex');
 
   const [user, setUser] = useState<YandexUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -40,34 +36,24 @@ export function useYandexMusic() {
   const pollTimeoutRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
 
-  const saveTokens = useCallback((access: string, refresh: string | undefined, expiresIn: number) => {
-    const expiryTime = Date.now() + expiresIn * 1000;
-    setAccessToken(access);
-    setTokenExpiry(expiryTime);
-    setIsAuthenticated(true);
-    localStorage.setItem('yandex_access_token', access);
-    localStorage.setItem('yandex_token_expiry', expiryTime.toString());
-    if (refresh) {
-      setRefreshToken(refresh);
-      localStorage.setItem('yandex_refresh_token', refresh);
-    }
-  }, []);
+  const saveTokens = useCallback(
+    (access: string, refresh: string | undefined, expiresIn: number) => {
+      storeTokens(access, refresh, expiresIn);
+      setIsAuthenticated(true);
+    },
+    [storeTokens]
+  );
 
   const logout = useCallback(() => {
     cancelledRef.current = true;
     if (pollTimeoutRef.current) window.clearTimeout(pollTimeoutRef.current);
-    setAccessToken(null);
-    setRefreshToken(null);
-    setTokenExpiry(null);
+    clearTokens();
     setUser(null);
     setIsAuthenticated(false);
     setDeviceCode(null);
     setAuthStatus('idle');
     setAuthError(null);
-    localStorage.removeItem('yandex_access_token');
-    localStorage.removeItem('yandex_refresh_token');
-    localStorage.removeItem('yandex_token_expiry');
-  }, []);
+  }, [clearTokens]);
 
   const refreshYandexToken = useCallback(async (): Promise<string | null> => {
     if (!refreshToken) return null;
