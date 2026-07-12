@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { BridgeQueue } from './BridgeQueue';
 import type { DestinationConnector, SourceConnector } from '../connectors/types';
@@ -117,5 +118,46 @@ describe('BridgeQueue', () => {
     expect(createdPlaylists).toEqual([{ name: 'Playlist A' }]);
     expect(screen.getByText('← Stop Queue')).toBeInTheDocument();
     expect(screen.getByText('Skip to Next Playlist →')).toBeInTheDocument();
+  });
+
+  // Previously the only options on a failed fetch were abandoning the whole queue or
+  // permanently skipping the item — no way to just retry a transient failure in place.
+  it('lets the user retry loading a single queue item after a transient fetch failure, without abandoning the queue', async () => {
+    const createdPlaylists: { name: string }[] = [];
+    let attempts = 0;
+    const flakySource: SourceConnector = {
+      ...makeSource(),
+      async getPlaylistName(_apiRequest, playlistId) {
+        attempts++;
+        if (attempts === 1) {
+          throw new Error('Network error loading playlist');
+        }
+        return PLAYLIST_CONTENT[playlistId].name;
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <BridgeQueue
+          to="deezer"
+          playlistIds={['p1']}
+          source={flakySource}
+          destination={makeDestination(createdPlaylists)}
+          sourceApiRequest={vi.fn()}
+          destApiRequest={vi.fn()}
+          onSaveProgress={vi.fn()}
+          onImportComplete={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('Network error loading playlist')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText('🔄 Retry This Playlist'));
+
+    await waitFor(() => expect(screen.getByText(/Queue Complete/)).toBeInTheDocument(), { timeout: 8000 });
+    expect(createdPlaylists).toEqual([{ name: 'Playlist A' }]);
+    expect(attempts).toBe(2);
   });
 });

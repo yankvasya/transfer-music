@@ -128,6 +128,7 @@ const BridgeQueueItem: React.FC<BridgeQueueItemProps> = ({
   const [tracksForCurrent, setTracksForCurrent] = useState<ParsedTrack[] | null>(null);
   const [loadError, setLoadError] = useState('');
   const [connectorExhausted, setConnectorExhausted] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const historyId = useMemo(() => crypto.randomUUID(), []);
 
   // 'stopped' means this playlist hit a connector-wide quota/rate-limit exhaustion, not a
@@ -162,7 +163,12 @@ const BridgeQueueItem: React.FC<BridgeQueueItemProps> = ({
     return () => {
       active = false;
     };
-  }, [playlistId, source, sourceApiRequest]);
+  }, [playlistId, source, sourceApiRequest, retryCount]);
+
+  const retryLoad = () => {
+    setLoadError('');
+    setRetryCount((c) => c + 1);
+  };
 
   if (loadError) {
     return (
@@ -172,6 +178,9 @@ const BridgeQueueItem: React.FC<BridgeQueueItemProps> = ({
         <div className="form-actions">
           <button className="btn btn-secondary" onClick={onStop}>
             ← Stop Queue
+          </button>
+          <button className="btn btn-outline" onClick={retryLoad}>
+            🔄 Retry This Playlist
           </button>
           {index + 1 < total && (
             <button className="btn btn-outline" onClick={onAdvance}>
