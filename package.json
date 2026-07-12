@@ -1,8 +1,15 @@
 {
   "name": "transfer-music",
+  "description": "Move playlists between Spotify, YouTube, Yandex Music, and Deezer — paste a tracklist, export to text, or bridge two services directly.",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yankvasya/transfer-music.git"
+  },
+  "homepage": "https://transfer-music-beta.vercel.app",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
