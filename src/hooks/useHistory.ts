@@ -29,6 +29,19 @@ function loadHistory(): HistoryEntry[] {
   }
 }
 
+// A resumable entry stores its full track/matched/failed arrays, so a large import (the
+// kind most likely to actually need resuming) can plausibly push total history size past
+// localStorage's quota. Swallow that here rather than letting it throw out of `upsert` —
+// notably, `upsert` is also called from ImporterProgress's crash-recovery catch block, so
+// an unguarded throw here would defeat the whole point of persisting a checkpoint on crash.
+function trySetHistory(entries: HistoryEntry[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  } catch (err) {
+    console.error('Failed to persist import history (storage may be full):', err);
+  }
+}
+
 type EntrySummary = Omit<HistoryEntry, 'id' | 'createdAt' | 'status' | 'resumeData'>;
 
 export function useHistory() {
@@ -43,7 +56,7 @@ export function useHistory() {
         ...patch,
       };
       const next = idx >= 0 ? prev.map((h, i) => (i === idx ? entry : h)) : [entry, ...prev];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      trySetHistory(next);
       return next;
     });
   }, []);
@@ -67,7 +80,7 @@ export function useHistory() {
   const removeEntry = useCallback((id: string) => {
     setHistory((prev) => {
       const next = prev.filter((h) => h.id !== id);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      trySetHistory(next);
       return next;
     });
   }, []);
