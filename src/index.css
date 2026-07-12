@@ -1005,35 +1005,147 @@ textarea.form-control {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Landing Page */
+.landing-page {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.landing-hero {
+  text-align: center;
+  padding: 2rem 0 1rem;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.landing-title {
+  font-size: 2.6rem;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(to right, #ffffff, var(--accent-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 1rem;
+}
+
+.landing-subtitle {
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  max-width: 640px;
+  margin: 0 auto 2rem;
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1.25rem;
+}
+
+.landing-feature-card {
+  padding: 1.75rem;
+  animation: fadeIn 0.5s ease-out both;
+}
+
+.landing-feature-icon {
+  font-size: 1.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.landing-feature-card h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.landing-steps {
+  animation: fadeIn 0.5s ease-out 0.3s both;
+}
+
+.landing-steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.landing-step {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.landing-step-number {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  color: #04140a;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.landing-step h4 {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.landing-footer {
+  text-align: center;
+  padding-bottom: 1rem;
+}
+
+.landing-footer a {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.landing-footer a:hover {
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .app-container {
     padding: 1rem;
   }
-  
+
   .glass-panel {
     padding: 1.5rem;
   }
-  
+
   .log-container {
     grid-template-columns: 1fr;
     height: 900px;
   }
-  
+
   .stats-row {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .form-actions {
     flex-direction: column;
   }
-  
+
   .form-actions.split {
     flex-direction: column-reverse;
   }
-  
+
   .form-actions .btn {
     width: 100%;
+  }
+
+  .landing-title {
+    font-size: 1.9rem;
+  }
+
+  .landing-steps-row {
+    grid-template-columns: 1fr;
   }
 }

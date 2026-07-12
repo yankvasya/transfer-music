@@ -8,6 +8,7 @@ import { useDeezer } from './hooks/useDeezer';
 import { useHistory } from './hooks/useHistory';
 import type { HistoryEntry } from './hooks/useHistory';
 import { Header } from './components/Header';
+import { LandingPage } from './components/LandingPage';
 import { SourceDestinationSelect } from './components/SourceDestinationSelect';
 import type { ConnectorId } from './components/SourceDestinationSelect';
 import { ImportRoute } from './components/ImportRoute';
@@ -34,6 +35,17 @@ function App() {
   const deezer = useDeezer();
   const { history, saveProgress, completeEntry, removeEntry } = useHistory();
   const navigate = useNavigate();
+
+  // Shown once, on a genuine first visit — every existing "back to start" navigation
+  // elsewhere in the app already targets "/" expecting the picker, so gating this at the
+  // root route (rather than moving the picker to a new path) means none of those call
+  // sites needed to change: by the time a user can trigger one, they've necessarily
+  // already passed this gate. /about always shows the same content on demand.
+  const [hasSeenLanding, setHasSeenLanding] = useState(() => localStorage.getItem('transfer_music_seen_landing') === '1');
+  const markLandingSeen = () => {
+    localStorage.setItem('transfer_music_seen_landing', '1');
+    setHasSeenLanding(true);
+  };
 
   // The redirect-based services (Spotify, YouTube, Deezer) all fall back to the exact
   // same redirect URI (site root), so one value covers whichever developer
@@ -198,7 +210,12 @@ function App() {
 
   return (
     <div className="app-container">
-      <Header accounts={accounts} onShowHistory={() => navigate('/history')} onGoHome={handleGoHome} />
+      <Header
+        accounts={accounts}
+        onShowHistory={() => navigate('/history')}
+        onShowAbout={() => navigate('/about')}
+        onGoHome={handleGoHome}
+      />
 
       {isBooting ? (
         <div className="glass-panel center-align">
@@ -207,7 +224,18 @@ function App() {
       ) : (
         <main>
           <Routes>
-            <Route path="/" element={<SourceDestinationSelect onContinue={handleConnectorContinue} />} />
+            <Route
+              path="/"
+              element={
+                hasSeenLanding ? (
+                  <SourceDestinationSelect onContinue={handleConnectorContinue} />
+                ) : (
+                  <LandingPage onGetStarted={markLandingSeen} />
+                )
+              }
+            />
+
+            <Route path="/about" element={<LandingPage onGetStarted={() => navigate('/')} />} />
 
             <Route
               path="/import"

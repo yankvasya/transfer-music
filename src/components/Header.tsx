@@ -10,10 +10,11 @@ export interface ConnectedAccount {
 interface HeaderProps {
   accounts: ConnectedAccount[];
   onShowHistory: () => void;
+  onShowAbout: () => void;
   onGoHome: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onGoHome }) => {
+export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onShowAbout, onGoHome }) => {
   return (
     <header className="app-header">
       <button type="button" className="header-brand" onClick={onGoHome}>
@@ -43,6 +44,9 @@ export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onGoHom
             </button>
           </div>
         ))}
+        <button className="btn btn-sm btn-outline" onClick={onShowAbout}>
+          About
+        </button>
         <button className="btn btn-sm btn-outline" onClick={onShowHistory}>
           History
         </button>
