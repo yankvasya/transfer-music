@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useStoredValue } from './useStoredValue';
+import { useTokenStorage } from './useTokenStorage';
 
 const AUTHORIZE_ENDPOINT = 'https://connect.deezer.com/oauth/auth.php';
 const AUTH_PROXY = '/api/deezer-auth';
@@ -25,50 +27,32 @@ function getRedirectUri(): string {
 // registered at developers.deezer.com/myapps. Both are stored client-side only and sent
 // to this app's own /api/deezer-auth proxy per request — never persisted server-side.
 export function useDeezer() {
-  const [appId, setAppIdState] = useState<string>(() => localStorage.getItem('deezer_app_id') || '');
-  const [appSecret, setAppSecretState] = useState<string>(() => localStorage.getItem('deezer_app_secret') || '');
+  const [appId, setAppId] = useStoredValue('deezer_app_id');
+  const [appSecret, setAppSecret] = useStoredValue('deezer_app_secret');
 
-  const [accessToken, setAccessToken] = useState<string | null>(() => localStorage.getItem('deezer_access_token'));
-  // null means "never expires" (offline_access), not "no token" — accessToken covers that case.
-  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => {
-    const expiry = localStorage.getItem('deezer_token_expiry');
-    return expiry ? parseInt(expiry, 10) : null;
+  // null means "never expires" (offline_access), not "no token" — accessToken covers that
+  // case. Deezer has no refresh_token concept, so hasRefreshToken is disabled.
+  const { accessToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('deezer', {
+    hasRefreshToken: false,
   });
 
   const [user, setUser] = useState<DeezerUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const setAppId = useCallback((id: string) => {
-    setAppIdState(id);
-    if (id) localStorage.setItem('deezer_app_id', id);
-    else localStorage.removeItem('deezer_app_id');
-  }, []);
-
-  const setAppSecret = useCallback((secret: string) => {
-    setAppSecretState(secret);
-    if (secret) localStorage.setItem('deezer_app_secret', secret);
-    else localStorage.removeItem('deezer_app_secret');
-  }, []);
-
   const logout = useCallback(() => {
-    setAccessToken(null);
-    setTokenExpiry(null);
+    clearTokens();
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('deezer_access_token');
-    localStorage.removeItem('deezer_token_expiry');
-  }, []);
+  }, [clearTokens]);
 
-  const saveTokens = useCallback((access: string, expiresInSeconds: number) => {
-    const expiryTime = expiresInSeconds > 0 ? Date.now() + expiresInSeconds * 1000 : null;
-    setAccessToken(access);
-    setTokenExpiry(expiryTime);
-    setIsAuthenticated(true);
-    localStorage.setItem('deezer_access_token', access);
-    if (expiryTime) localStorage.setItem('deezer_token_expiry', String(expiryTime));
-    else localStorage.removeItem('deezer_token_expiry');
-  }, []);
+  const saveTokens = useCallback(
+    (access: string, expiresInSeconds: number) => {
+      storeTokens(access, undefined, expiresInSeconds > 0 ? expiresInSeconds : null);
+      setIsAuthenticated(true);
+    },
+    [storeTokens]
+  );
 
   const login = useCallback(() => {
     if (!appId || !appSecret) {

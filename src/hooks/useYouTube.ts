@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
+import { useStoredValue } from './useStoredValue';
+import { useTokenStorage } from './useTokenStorage';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const AUTHORIZE_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -18,35 +20,12 @@ export interface QuotaExceeded {
 }
 
 export function useYouTube() {
-  const [clientId, setClientIdState] = useState<string>(() => {
-    return localStorage.getItem('youtube_custom_client_id') || import.meta.env.VITE_YOUTUBE_CLIENT_ID || '';
-  });
-
-  const [accessToken, setAccessToken] = useState<string | null>(() => {
-    return localStorage.getItem('youtube_access_token');
-  });
-
-  const [refreshToken, setRefreshToken] = useState<string | null>(() => {
-    return localStorage.getItem('youtube_refresh_token');
-  });
-
-  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => {
-    const expiry = localStorage.getItem('youtube_token_expiry');
-    return expiry ? parseInt(expiry, 10) : null;
-  });
+  const [clientId, setClientId] = useStoredValue('youtube_custom_client_id', import.meta.env.VITE_YOUTUBE_CLIENT_ID);
+  const { accessToken, refreshToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('youtube');
 
   const [user, setUser] = useState<YouTubeUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  const setClientId = useCallback((id: string) => {
-    setClientIdState(id);
-    if (id) {
-      localStorage.setItem('youtube_custom_client_id', id);
-    } else {
-      localStorage.removeItem('youtube_custom_client_id');
-    }
-  }, []);
 
   const getRedirectUri = useCallback(() => {
     const envUri = import.meta.env.VITE_YOUTUBE_REDIRECT_URI;
@@ -56,34 +35,20 @@ export function useYouTube() {
     return window.location.origin + '/';
   }, []);
 
-  const saveTokens = useCallback((access: string, refresh: string | undefined, expiresIn: number) => {
-    const expiryTime = Date.now() + expiresIn * 1000;
-    setAccessToken(access);
-    setTokenExpiry(expiryTime);
-    setIsAuthenticated(true);
-
-    localStorage.setItem('youtube_access_token', access);
-    localStorage.setItem('youtube_token_expiry', expiryTime.toString());
-
-    // Google only returns a refresh_token on the first consent for a given scope set —
-    // keep the previously stored one if this response didn't include a new one.
-    if (refresh) {
-      setRefreshToken(refresh);
-      localStorage.setItem('youtube_refresh_token', refresh);
-    }
-  }, []);
+  const saveTokens = useCallback(
+    (access: string, refresh: string | undefined, expiresIn: number) => {
+      storeTokens(access, refresh, expiresIn);
+      setIsAuthenticated(true);
+    },
+    [storeTokens]
+  );
 
   const logout = useCallback(() => {
-    setAccessToken(null);
-    setRefreshToken(null);
-    setTokenExpiry(null);
+    clearTokens();
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('youtube_access_token');
-    localStorage.removeItem('youtube_refresh_token');
-    localStorage.removeItem('youtube_token_expiry');
     localStorage.removeItem('youtube_code_verifier');
-  }, []);
+  }, [clearTokens]);
 
   const refreshYouTubeToken = useCallback(async (): Promise<string | null> => {
     if (!refreshToken || !clientId) return null;

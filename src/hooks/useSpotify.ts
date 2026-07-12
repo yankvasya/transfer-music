@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
+import { useStoredValue } from './useStoredValue';
+import { useTokenStorage } from './useTokenStorage';
 
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
 const AUTHORIZE_ENDPOINT = 'https://accounts.spotify.com/authorize';
@@ -12,36 +14,12 @@ export interface SpotifyUser {
 }
 
 export function useSpotify() {
-  const [clientId, setClientIdState] = useState<string>(() => {
-    return localStorage.getItem('spotify_custom_client_id') || import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
-  });
-
-  const [accessToken, setAccessToken] = useState<string | null>(() => {
-    return localStorage.getItem('spotify_access_token');
-  });
-
-  const [refreshToken, setRefreshToken] = useState<string | null>(() => {
-    return localStorage.getItem('spotify_refresh_token');
-  });
-
-  const [tokenExpiry, setTokenExpiry] = useState<number | null>(() => {
-    const expiry = localStorage.getItem('spotify_token_expiry');
-    return expiry ? parseInt(expiry, 10) : null;
-  });
+  const [clientId, setClientId] = useStoredValue('spotify_custom_client_id', import.meta.env.VITE_SPOTIFY_CLIENT_ID);
+  const { accessToken, refreshToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('spotify');
 
   const [user, setUser] = useState<SpotifyUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // Update client ID and persist if custom
-  const setClientId = useCallback((id: string) => {
-    setClientIdState(id);
-    if (id) {
-      localStorage.setItem('spotify_custom_client_id', id);
-    } else {
-      localStorage.removeItem('spotify_custom_client_id');
-    }
-  }, []);
 
   const getRedirectUri = useCallback(() => {
     const envUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
@@ -51,31 +29,22 @@ export function useSpotify() {
     return window.location.origin + '/';
   }, []);
 
-  // Save tokens to state and localStorage
-  const saveTokens = useCallback((access: string, refresh: string, expiresIn: number) => {
-    const expiryTime = Date.now() + expiresIn * 1000;
-    setAccessToken(access);
-    setRefreshToken(refresh);
-    setTokenExpiry(expiryTime);
-    setIsAuthenticated(true);
-
-    localStorage.setItem('spotify_access_token', access);
-    localStorage.setItem('spotify_refresh_token', refresh);
-    localStorage.setItem('spotify_token_expiry', expiryTime.toString());
-  }, []);
+  // Save tokens to storage and mark the session authenticated.
+  const saveTokens = useCallback(
+    (access: string, refresh: string | undefined, expiresIn: number) => {
+      storeTokens(access, refresh, expiresIn);
+      setIsAuthenticated(true);
+    },
+    [storeTokens]
+  );
 
   // Logout / clear credentials
   const logout = useCallback(() => {
-    setAccessToken(null);
-    setRefreshToken(null);
-    setTokenExpiry(null);
+    clearTokens();
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('spotify_access_token');
-    localStorage.removeItem('spotify_refresh_token');
-    localStorage.removeItem('spotify_token_expiry');
     localStorage.removeItem('spotify_code_verifier');
-  }, []);
+  }, [clearTokens]);
 
   // Refresh access token using refresh_token
   const refreshSpotifyToken = useCallback(async (): Promise<string | null> => {
@@ -101,7 +70,7 @@ export function useSpotify() {
       const data = await response.json();
       saveTokens(
         data.access_token,
-        data.refresh_token || refreshToken, // Spotify might not return a new refresh token
+        data.refresh_token, // Spotify might not return a new refresh token — saveTokens keeps the old one
         data.expires_in
       );
       return data.access_token;
@@ -189,7 +158,7 @@ export function useSpotify() {
 
       const data = await response.json();
       saveTokens(data.access_token, data.refresh_token, data.expires_in);
-      
+
       // Clean up URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
@@ -253,8 +222,8 @@ export function useSpotify() {
 
   // Generic Spotify API Wrapper with rate-limit and auth handling
   const apiRequest = useCallback(async (
-    endpoint: string, 
-    options: RequestInit = {}, 
+    endpoint: string,
+    options: RequestInit = {},
     retryCount = 0
   ): Promise<any> => {
     const token = await getValidToken();
@@ -281,10 +250,10 @@ export function useSpotify() {
       const retryAfterHeader = response.headers.get('Retry-After');
       const waitSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : Math.pow(2, retryCount) * 2;
       console.warn(`Rate limited (429). Retrying after ${waitSeconds} seconds...`);
-      
+
       // Bubble up the rate-limit information so the UI can show progress/pause
-      return { 
-        isRateLimited: true, 
+      return {
+        isRateLimited: true,
         waitSeconds,
         retry: () => new Promise((resolve) => setTimeout(() => resolve(apiRequest(endpoint, options, retryCount + 1)), waitSeconds * 1000))
       };
