@@ -27,18 +27,20 @@ Each one needed a different auth flow, which is most of why this project exists 
 
 | Service | Auth | Notes |
 |---|---|---|
-| Spotify | OAuth PKCE, your own Client ID | Direct browser calls |
-| YouTube | OAuth PKCE, your own Client ID | Data API v3; import capped at ~100 searches/day on the free tier, handled via a circuit breaker |
-| Yandex Music | OAuth Device Flow, shared credential | No CORS support server-side — proxied through a small Vercel function |
-| Deezer | OAuth (no PKCE), your own App ID + Secret | Also proxied — missing `Access-Control-Allow-Origin` blocks direct calls |
+| Spotify | OAuth PKCE, shared app | Direct browser calls |
+| YouTube | OAuth PKCE, shared app | Data API v3; import capped at ~100 searches/day on the free tier, handled via a circuit breaker |
+| Yandex Music | OAuth Device Flow, shared app | No CORS support server-side — proxied through a small Vercel function |
+| Deezer | OAuth (no PKCE), shared app | Also proxied — missing `Access-Control-Allow-Origin` blocks direct calls |
+
+All four now log in through this app's own shared credentials — visitors just click "Login with X," no developer account or Client ID of their own required. The tradeoff: Spotify caps an unverified app at 25 total users and YouTube's `youtube` scope caps an unverified app at 100, both shared across every visitor this deployment ever gets, until going through that platform's app-review process. Deployed here anyway as the more realistic default for a project people are actually meant to try; if you fork this and expect real traffic, budget for that review.
 
 A couple of services were investigated and deliberately **not** added: VK Music (no OAuth path for audio scope — the only working method needs the user's raw account password, with real ban risk), and Apple Music / SoundCloud (both require a paid developer subscription just to register an app).
 
 ## Tech stack
 
 - **React 19 + TypeScript + Vite**, `react-router-dom` (query-param routing, not path segments — adding a service is a new `?type=` value, not new routes)
-- **Vercel serverless functions** (Web Fetch API handlers) for the two services that need a CORS/auth proxy
-- **Vitest + React Testing Library** — 76 tests across 11 files, covering the core import loop (rate limiting, quota handling, resumability, duplicate detection, manual review), the bulk migration queue, and history persistence
+- **Vercel serverless functions** (Web Fetch API handlers) for the services that need a CORS/auth proxy
+- **Vitest + React Testing Library** — 100+ tests, covering the core import loop (rate limiting, quota handling, resumability, duplicate detection, manual review), the bulk migration queue, and history persistence
 - **GitHub Actions CI** — typecheck, build, lint, and the full test suite on every PR
 - No backend database — playlists and history live in the actual music services and the browser's `localStorage`, respectively
 
@@ -50,15 +52,17 @@ Every service implements the same two interfaces — `DestinationConnector` (`cr
 
 ```bash
 npm install
-cp .env.example .env   # fill in your own OAuth credentials, see below
+cp .env.example .env   # fill in your own app credentials, see below
 npm run dev
 ```
 
 ### Credentials
 
+Every service now runs on one shared app instead of a per-visitor Client ID — see `.env.example` for the full list. Short version:
+
 - **Spotify / YouTube**: register your own app (Spotify Developer Dashboard / Google Cloud Console) and set `VITE_SPOTIFY_CLIENT_ID`, `VITE_SPOTIFY_REDIRECT_URI`, `VITE_YOUTUBE_CLIENT_ID`, `VITE_YOUTUBE_REDIRECT_URI` in `.env`.
-- **Yandex Music**: uses a shared OAuth app — no per-user setup needed locally, but the proxy functions in `api/` need `YANDEX_CLIENT_ID` / `YANDEX_CLIENT_SECRET` set as server-side env vars if you're deploying your own instance.
-- **Deezer**: no env vars — you enter your own App ID and Secret Key directly in the app's login screen.
+- **Yandex Music**: uses a shared OAuth app — the proxy functions in `api/` need `YANDEX_CLIENT_ID` / `YANDEX_CLIENT_SECRET` set as server-side env vars (in your Vercel project settings, not `.env`).
+- **Deezer**: register an app at `developers.deezer.com/myapps`. The App ID is public (`VITE_DEEZER_APP_ID`); the Secret Key must be server-side only (`DEEZER_APP_SECRET`, set in Vercel, never in `.env`/committed anywhere).
 
 ### Scripts
 

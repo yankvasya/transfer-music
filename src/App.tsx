@@ -47,12 +47,6 @@ function App() {
     setHasSeenLanding(true);
   };
 
-  // The redirect-based services (Spotify, YouTube, Deezer) all fall back to the exact
-  // same redirect URI (site root), so one value covers whichever developer
-  // dashboard/console the user is configuring. Yandex's device flow has no redirect URI
-  // at all.
-  const redirectUri = (import.meta.env.VITE_SPOTIFY_REDIRECT_URI as string | undefined) || window.location.origin + '/';
-
   const authByService: Record<ServiceId, ServiceAuth> = {
     spotify: {
       isAuthenticated: spotify.isAuthenticated,
@@ -102,31 +96,18 @@ function App() {
       );
     }
     if (service === 'deezer') {
-      return (
-        <DeezerLoginUI
-          appId={deezer.appId}
-          setAppId={deezer.setAppId}
-          appSecret={deezer.appSecret}
-          setAppSecret={deezer.setAppSecret}
-          isLoading={deezer.isLoading}
-          login={deezer.login}
-          redirectUri={redirectUri}
-        />
-      );
+      return <DeezerLoginUI isConfigured={deezer.isConfigured} isLoading={deezer.isLoading} login={deezer.login} />;
     }
     const hook = service === 'spotify' ? spotify : youtube;
     return (
       <OAuthLoginUI
-        clientId={hook.clientId}
-        setClientId={hook.setClientId}
+        isConfigured={hook.isConfigured}
         isLoading={hook.isLoading}
         login={hook.login}
         serviceName={meta.name}
-        helpText={meta.helpText}
         loginDescription={meta.loginDescription}
         loginIcon={meta.icon}
         loginButtonClass={meta.buttonClass}
-        redirectUri={redirectUri}
       />
     );
   };

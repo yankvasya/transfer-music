@@ -17,7 +17,6 @@ interface ServiceMeta {
   name: string;
   icon: string;
   buttonClass: string;
-  helpText: string;
   loginDescription: string;
 }
 
@@ -26,34 +25,28 @@ export const SERVICE_META: Record<ServiceId, ServiceMeta> = {
     name: 'Spotify',
     icon: '🟢',
     buttonClass: 'btn-spotify',
-    helpText: 'To use client-side authentication, you need to create a Spotify Developer App and get a Client ID.',
     loginDescription: 'Log in with your Spotify account to authorize creating playlists and importing your tracks.',
   },
   youtube: {
     name: 'YouTube',
     icon: '▶️',
     buttonClass: 'btn-youtube',
-    helpText:
-      'To use client-side authentication, create a Google Cloud project, enable the "YouTube Data API v3", and create an OAuth Client ID of type "Web application".',
     loginDescription: 'Log in with your Google account to authorize creating YouTube playlists and importing videos.',
   },
   'yandex-music': {
     name: 'Yandex Music',
     icon: '🎵',
     buttonClass: 'btn-yandex',
-    // Yandex doesn't allow third-party apps to register their own OAuth client, so
-    // there's no Client ID step here — helpText/loginDescription/buttonClass are
-    // unused by its actual login UI (YandexDeviceLogin) but kept for a complete Record.
-    helpText: '',
+    // loginDescription/buttonClass are unused by its actual login UI (YandexDeviceLogin)
+    // but kept for a complete Record.
     loginDescription: '',
   },
   deezer: {
     name: 'Deezer',
     icon: '🎶',
     buttonClass: 'btn-deezer',
-    // helpText/loginDescription are unused by DeezerLoginUI (which has its own
-    // two-field App ID + Secret copy) but kept for a complete Record.
-    helpText: '',
+    // loginDescription is unused by DeezerLoginUI (which has its own copy) but kept for
+    // a complete Record.
     loginDescription: '',
   },
 };

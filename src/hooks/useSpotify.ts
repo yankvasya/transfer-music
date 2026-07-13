@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
-import { useStoredValue } from './useStoredValue';
 import { useTokenStorage } from './useTokenStorage';
 
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
@@ -14,7 +13,9 @@ export interface SpotifyUser {
 }
 
 export function useSpotify() {
-  const [clientId, setClientId] = useStoredValue('spotify_custom_client_id', import.meta.env.VITE_SPOTIFY_CLIENT_ID);
+  // Shared app (this app's own Client ID), not a per-user credential — see OAuthLoginUI.
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
+  const isConfigured = !!clientId;
   const { accessToken, refreshToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('spotify');
 
   const [user, setUser] = useState<SpotifyUser | null>(null);
@@ -93,8 +94,8 @@ export function useSpotify() {
 
   // Initiate Spotify OAuth PKCE authorization redirect
   const login = useCallback(async () => {
-    if (!clientId) {
-      alert('Please enter or configure a Spotify Client ID first.');
+    if (!isConfigured) {
+      alert('Spotify login is not configured on this deployment yet.');
       return;
     }
 
@@ -123,7 +124,7 @@ export function useSpotify() {
     });
 
     window.location.href = `${AUTHORIZE_ENDPOINT}?${params.toString()}`;
-  }, [clientId, getRedirectUri]);
+  }, [clientId, isConfigured, getRedirectUri]);
 
   // Exchange auth code for tokens
   const exchangeCodeForTokens = useCallback(async (code: string) => {
@@ -163,7 +164,7 @@ export function useSpotify() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
       console.error('Error during token exchange:', error);
-      alert('Failed to connect to Spotify. Check your Client ID configuration.');
+      alert('Failed to connect to Spotify.');
     } finally {
       setIsLoading(false);
     }
@@ -272,8 +273,7 @@ export function useSpotify() {
   }, [getValidToken, refreshSpotifyToken]);
 
   return {
-    clientId,
-    setClientId,
+    isConfigured,
     accessToken,
     user,
     isAuthenticated,
