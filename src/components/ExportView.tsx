@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ApiRequest, PlaylistSummary, SourceConnector } from '../connectors/types';
 import { parseTracklist } from '../utils/parser';
+import { Tooltip } from './Tooltip';
 
 interface ExportViewProps {
   source: SourceConnector;
@@ -180,9 +181,9 @@ export const ExportView: React.FC<ExportViewProps> = ({ source, apiRequest, curr
                         {playlist.trackCount} tracks
                       </div>
                     </div>
-                    <span className="playlist-not-owned-badge" title={playlist.unexportableReason}>
-                      ❓
-                    </span>
+                    <Tooltip text={playlist.unexportableReason || ''}>
+                      <span className="playlist-not-owned-badge">❓</span>
+                    </Tooltip>
                     <a href={playlist.externalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">
                       Open in {source.label}
                     </a>
