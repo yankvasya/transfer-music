@@ -160,4 +160,39 @@ describe('BridgeQueue', () => {
     expect(createdPlaylists).toEqual([{ name: 'Playlist A' }]);
     expect(attempts).toBe(2);
   });
+
+  // Regression test for a real bug the user hit in production: a critical error inside
+  // ImporterProgress (e.g. an unhandled API error) was silently treated the same as a
+  // real success — the queue auto-advanced and showed "🎉 Queue Complete!" even though
+  // nothing was actually moved, with no indication anything had gone wrong.
+  it('shows the queue finished with errors, not a false "Queue Complete", when an item crashes', async () => {
+    const brokenDestination: DestinationConnector = {
+      ...makeDestination([]),
+      async createPlaylist() {
+        throw new Error('Unavailable For Legal Reasons');
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <BridgeQueue
+          to="deezer"
+          playlistIds={['p1']}
+          source={makeSource()}
+          destination={brokenDestination}
+          sourceApiRequest={vi.fn()}
+          destApiRequest={vi.fn()}
+          onSaveProgress={vi.fn()}
+          onImportComplete={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    // onDone fires 1.5s after ImporterProgress reaches its terminal 'failed' status.
+    await waitFor(() => expect(screen.getByText('⚠️ Queue Finished With Errors')).toBeInTheDocument(), { timeout: 3000 });
+
+    expect(screen.queryByText('🎉 Queue Complete!')).not.toBeInTheDocument();
+    expect(screen.getByText('Moved 0 of 1 playlist to Deezer.')).toBeInTheDocument();
+    expect(screen.getByText('Failed — check History for details and to resume')).toBeInTheDocument();
+  });
 });
