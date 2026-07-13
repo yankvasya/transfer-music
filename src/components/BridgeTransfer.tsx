@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ApiRequest, PlaylistSummary, SourceConnector } from '../connectors/types';
 import { SERVICE_META } from '../serviceMeta';
+import { Tooltip } from './Tooltip';
 import type { ServiceId } from '../types';
 
 interface BridgeTransferProps {
@@ -163,9 +164,9 @@ export const BridgeTransfer: React.FC<BridgeTransferProps> = ({ from, to, source
                       {playlist.trackCount} tracks
                     </div>
                   </div>
-                  <span className="playlist-not-owned-badge" title={playlist.unexportableReason}>
-                    ❓
-                  </span>
+                  <Tooltip text={playlist.unexportableReason || ''}>
+                    <span className="playlist-not-owned-badge">❓</span>
+                  </Tooltip>
                   <a href={playlist.externalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline">
                     Open in {source.label}
                   </a>

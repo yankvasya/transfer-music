@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export interface ConnectedAccount {
   serviceName: string;
+  icon: string;
   displayName: string;
   imageUrl?: string;
   onLogout: () => void;
@@ -14,7 +15,24 @@ interface HeaderProps {
   onGoHome: () => void;
 }
 
+// Logging into more than one or two services used to render each as its own inline chip,
+// which crowded the header fast. Collapsed into a single "Accounts (N)" button that opens
+// a dropdown listing each one instead.
 export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onShowAbout, onGoHome }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
   return (
     <header className="app-header">
       <button type="button" className="header-brand" onClick={onGoHome}>
@@ -31,19 +49,33 @@ export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onShowA
       </button>
 
       <div className="header-actions">
-        {accounts.map((account) => (
-          <div key={account.serviceName} className="user-profile">
-            {account.imageUrl ? (
-              <img src={account.imageUrl} alt={account.displayName} className="user-avatar" />
-            ) : (
-              <div className="user-avatar-placeholder">{account.displayName.charAt(0).toUpperCase()}</div>
-            )}
-            <span className="user-name">{account.displayName}</span>
-            <button className="btn btn-sm btn-outline-danger" onClick={account.onLogout}>
-              Logout {account.serviceName}
+        {accounts.length > 0 && (
+          <div className="accounts-menu" ref={containerRef}>
+            <button type="button" className="btn btn-sm btn-outline" onClick={() => setOpen((v) => !v)}>
+              👤 Accounts ({accounts.length})
             </button>
+            {open && (
+              <div className="accounts-dropdown">
+                {accounts.map((account) => (
+                  <div key={account.serviceName} className="accounts-dropdown-item">
+                    {account.imageUrl ? (
+                      <img src={account.imageUrl} alt={account.displayName} className="user-avatar" />
+                    ) : (
+                      <div className="user-avatar-placeholder">{account.displayName.charAt(0).toUpperCase()}</div>
+                    )}
+                    <span className="accounts-dropdown-service" title={account.serviceName}>
+                      {account.icon}
+                    </span>
+                    <span className="user-name">{account.displayName}</span>
+                    <button className="btn btn-sm btn-outline-danger" onClick={account.onLogout}>
+                      Logout
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+        )}
         <button className="btn btn-sm btn-outline" onClick={onShowAbout}>
           About
         </button>

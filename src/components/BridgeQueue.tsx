@@ -39,6 +39,7 @@ export const BridgeQueue: React.FC<BridgeQueueProps> = ({
 
   const [index, setIndex] = useState(0);
   const [completed, setCompleted] = useState<{ name: string; url: string }[]>([]);
+  const [failed, setFailed] = useState<string[]>([]);
 
   const advance = () => setIndex((i) => i + 1);
 
@@ -47,10 +48,18 @@ export const BridgeQueue: React.FC<BridgeQueueProps> = ({
     setCompleted((prev) => [...prev, { name: summary.name, url: summary.url }]);
   };
 
+  const handleItemFailed = (name: string) => {
+    setFailed((prev) => [...prev, name]);
+  };
+
   if (index >= playlistIds.length) {
     return (
       <div className="glass-panel">
-        <div className="badge-wrapper success">🎉 Queue Complete!</div>
+        {failed.length === 0 ? (
+          <div className="badge-wrapper success">🎉 Queue Complete!</div>
+        ) : (
+          <div className="badge-wrapper danger">⚠️ Queue Finished With Errors</div>
+        )}
         <p className="description-text">
           Moved {completed.length} of {playlistIds.length} playlist{playlistIds.length === 1 ? '' : 's'} to {toMeta.name}.
         </p>
@@ -63,6 +72,12 @@ export const BridgeQueue: React.FC<BridgeQueueProps> = ({
               <a href={p.url} target="_blank" rel="noopener noreferrer" className="log-item-spotify">
                 Open in {toMeta.name}
               </a>
+            </div>
+          ))}
+          {failed.map((name, idx) => (
+            <div key={idx} className="log-item danger">
+              <span className="log-item-raw">{name}</span>
+              <span className="log-item-error">Failed — check History for details and to resume</span>
             </div>
           ))}
         </div>
@@ -88,6 +103,7 @@ export const BridgeQueue: React.FC<BridgeQueueProps> = ({
       destApiRequest={destApiRequest}
       onSaveProgress={onSaveProgress}
       onImportComplete={handleItemComplete}
+      onFailed={handleItemFailed}
       onAdvance={advance}
       onStop={() => navigate('/')}
     />
@@ -104,6 +120,7 @@ interface BridgeQueueItemProps {
   destApiRequest: ApiRequest;
   onSaveProgress: BridgeQueueProps['onSaveProgress'];
   onImportComplete: (id: string, summary: ImportSummary) => void;
+  onFailed: (name: string) => void;
   onAdvance: () => void;
   onStop: () => void;
 }
@@ -121,6 +138,7 @@ const BridgeQueueItem: React.FC<BridgeQueueItemProps> = ({
   destApiRequest,
   onSaveProgress,
   onImportComplete,
+  onFailed,
   onAdvance,
   onStop,
 }) => {
@@ -133,11 +151,16 @@ const BridgeQueueItem: React.FC<BridgeQueueItemProps> = ({
 
   // 'stopped' means this playlist hit a connector-wide quota/rate-limit exhaustion, not a
   // one-off failure — auto-advancing would almost certainly hit the same wall on the next
-  // playlist too, so pause the queue here instead and let the user decide.
+  // playlist too, so pause the queue here instead and let the user decide. 'failed' is a
+  // genuine critical-error crash inside ImporterProgress itself — still safe to advance
+  // (a critical error is less likely than a quota wall to recur identically on the next
+  // item), but it must NOT be silently treated as a success: the queue completion screen
+  // needs to know this item never actually finished.
   const handleItemDone = (status: 'completed' | 'failed' | 'stopped') => {
     if (status === 'stopped') {
       setConnectorExhausted(true);
     } else {
+      if (status === 'failed') onFailed(currentName || `Playlist ${index + 1}`);
       onAdvance();
     }
   };

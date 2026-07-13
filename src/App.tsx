@@ -202,6 +202,7 @@ function App() {
       const user = auth.user!;
       return {
         serviceName: SERVICE_META[id].name,
+        icon: SERVICE_META[id].icon,
         displayName: user.display_name,
         imageUrl: user.images?.[0]?.url,
         onLogout: auth.logout,
