@@ -284,6 +284,28 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           isCancelledRef.current = true;
         };
 
+        // Serializes connector.addTracks calls across all CONCURRENCY workers, which
+        // otherwise share one flush buffer and can each independently trigger a flush at
+        // nearly the same time. Harmless for most connectors, but required for Yandex:
+        // its mutation API fetches a revision number and submits a diff against it, so two
+        // calls in flight together can both read the same (stale) revision and race — the
+        // second gets rejected. Chaining the lock's promise instead of tracking a busy flag
+        // means each waiter resumes in the order it arrived, without a manual queue.
+        let addTracksLock: Promise<void> = Promise.resolve();
+        const withAddTracksLock = async <T,>(fn: () => Promise<T>): Promise<T> => {
+          const myTurn = addTracksLock;
+          let release: () => void = () => {};
+          addTracksLock = new Promise((resolve) => {
+            release = resolve;
+          });
+          await myTurn;
+          try {
+            return await fn();
+          } finally {
+            release();
+          }
+        };
+
         const flushBatchToPlaylist = async () => {
           if (pendingUrisRef.current.length === 0) return;
           const urisToAdd = [...pendingUrisRef.current];
@@ -298,7 +320,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
 
             let res;
             try {
-              res = await connector.addTracks(apiRequest, playlistId, urisToAdd);
+              res = await withAddTracksLock(() => connector.addTracks(apiRequest, playlistId, urisToAdd));
             } catch (err) {
               // A hard failure here (e.g. the destination playlist rejected the add because
               // it hit its own max size) throws rather than returning a status — restore the

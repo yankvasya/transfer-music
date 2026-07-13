@@ -295,6 +295,50 @@ describe('ImporterProgress', () => {
     expect(calls.added.flat().sort()).toEqual(['id-1', 'id-2']);
   });
 
+  it('serializes connector.addTracks calls even when multiple concurrent workers each trigger their own flush', async () => {
+    // With batchSize 1 and 5 tracks (matching CONCURRENCY), each of the 5 parallel search
+    // workers pushes its own single-track batch and independently triggers a flush at
+    // nearly the same time. Without the lock, this reliably produces overlapping addTracks
+    // calls — the kind that breaks Yandex's revision-based mutation API, where a second
+    // call in flight reads the same stale revision and gets rejected.
+    let inFlight = 0;
+    let maxConcurrent = 0;
+    const { connector, calls } = makeConnector({
+      batchSize: 1,
+      addTracks: async (_api, _playlistId, externalIds) => {
+        inFlight++;
+        maxConcurrent = Math.max(maxConcurrent, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        inFlight--;
+        calls.added.push(externalIds);
+        return { status: 'ok' };
+      },
+    });
+
+    const fiveTracks = [1, 2, 3, 4, 5].map((n) => track(`A - ${n}`, 'A', String(n)));
+
+    render(
+      <ImporterProgress
+        tracks={fiveTracks}
+        playlistName="My Playlist"
+        playlistDesc="desc"
+        isPublic={false}
+        apiRequest={noopApiRequest}
+        connector={connector}
+        onRestart={noop}
+        onBackToList={noop}
+        historyId="hist-addtracks-lock"
+        onSaveProgress={noop}
+        onImportComplete={noop}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('Playlist import completed successfully!')).toBeInTheDocument());
+
+    expect(maxConcurrent).toBe(1);
+    expect(calls.added).toHaveLength(5);
+  });
+
   it('persists an accurate resumable checkpoint when addTracks throws mid-import (e.g. the destination playlist hit its max size)', async () => {
     const { connector } = makeConnector({
       addTracks: async () => {
