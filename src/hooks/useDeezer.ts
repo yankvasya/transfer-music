@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useStoredValue } from './useStoredValue';
 import { useTokenStorage } from './useTokenStorage';
 
 const AUTHORIZE_ENDPOINT = 'https://connect.deezer.com/oauth/auth.php';
@@ -22,13 +21,14 @@ function getRedirectUri(): string {
   return window.location.origin + '/';
 }
 
-// Deezer has no PKCE option and no shared/public app credential the way Yandex does, so
-// (like Spotify/YouTube's Client ID) the user brings their own app_id + app_secret,
-// registered at developers.deezer.com/myapps. Both are stored client-side only and sent
-// to this app's own /api/deezer-auth proxy per request — never persisted server-side.
+// Deezer has no PKCE option, so a shared app (like Yandex's) is used instead of asking
+// each visitor to register their own — the App ID isn't secret (it's sent in the browser
+// redirect URL either way) so it's a public VITE_ env var; the Secret Key stays
+// server-side only, read by api/deezer-auth.ts from its own environment, never sent by
+// or to the client at all.
 export function useDeezer() {
-  const [appId, setAppId] = useStoredValue('deezer_app_id');
-  const [appSecret, setAppSecret] = useStoredValue('deezer_app_secret');
+  const appId = import.meta.env.VITE_DEEZER_APP_ID || '';
+  const isConfigured = !!appId;
 
   // null means "never expires" (offline_access), not "no token" — accessToken covers that
   // case. Deezer has no refresh_token concept, so hasRefreshToken is disabled.
@@ -55,8 +55,8 @@ export function useDeezer() {
   );
 
   const login = useCallback(() => {
-    if (!appId || !appSecret) {
-      alert('Please enter your Deezer App ID and Secret Key first.');
+    if (!isConfigured) {
+      alert('Deezer login is not configured on this deployment yet.');
       return;
     }
 
@@ -73,7 +73,7 @@ export function useDeezer() {
     });
 
     window.location.href = `${AUTHORIZE_ENDPOINT}?${params.toString()}`;
-  }, [appId, appSecret]);
+  }, [appId, isConfigured]);
 
   const exchangeCodeForTokens = useCallback(
     async (code: string) => {
@@ -82,7 +82,7 @@ export function useDeezer() {
         const res = await fetch(AUTH_PROXY, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appId, appSecret, code, redirectUri: getRedirectUri() }),
+          body: JSON.stringify({ code, redirectUri: getRedirectUri() }),
         });
         const data = await res.json();
         if (!res.ok || !data.access_token) {
@@ -92,12 +92,12 @@ export function useDeezer() {
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (err) {
         console.error('Error during Deezer token exchange:', err);
-        alert('Failed to connect to Deezer. Check your App ID/Secret configuration.');
+        alert('Failed to connect to Deezer.');
       } finally {
         setIsLoading(false);
       }
     },
-    [appId, appSecret, saveTokens]
+    [saveTokens]
   );
 
   const fetchUser = useCallback(
@@ -193,10 +193,7 @@ export function useDeezer() {
   );
 
   return {
-    appId,
-    setAppId,
-    appSecret,
-    setAppSecret,
+    isConfigured,
     isAuthenticated,
     isLoading,
     login,

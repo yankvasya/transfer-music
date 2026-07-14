@@ -5,8 +5,8 @@ import { Header } from './Header';
 import type { ConnectedAccount } from './Header';
 
 const ACCOUNTS: ConnectedAccount[] = [
-  { serviceName: 'Spotify', icon: '🟢', displayName: 'yankvasya', onLogout: vi.fn() },
-  { serviceName: 'Deezer', icon: '🎶', displayName: 'yankvasya', onLogout: vi.fn() },
+  { service: 'spotify', serviceName: 'Spotify', displayName: 'yankvasya', onLogout: vi.fn() },
+  { service: 'deezer', serviceName: 'Deezer', displayName: 'yankvasya', onLogout: vi.fn() },
 ];
 
 describe('Header', () => {
@@ -14,17 +14,18 @@ describe('Header', () => {
     render(<Header accounts={ACCOUNTS} onShowHistory={vi.fn()} onShowAbout={vi.fn()} onGoHome={vi.fn()} />);
 
     expect(screen.getByText('👤 Accounts (2)')).toBeInTheDocument();
-    expect(screen.queryByText('🟢')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Spotify')).not.toBeInTheDocument();
   });
 
   it('opens the dropdown on click, showing each account with its service icon and a logout button', async () => {
     const user = userEvent.setup();
-    render(<Header accounts={ACCOUNTS} onShowHistory={vi.fn()} onShowAbout={vi.fn()} onGoHome={vi.fn()} />);
+    const { container } = render(<Header accounts={ACCOUNTS} onShowHistory={vi.fn()} onShowAbout={vi.fn()} onGoHome={vi.fn()} />);
 
     await user.click(screen.getByText('👤 Accounts (2)'));
 
-    expect(screen.getByText('🟢')).toBeInTheDocument();
-    expect(screen.getByText('🎶')).toBeInTheDocument();
+    expect(screen.getByTitle('Spotify')).toBeInTheDocument();
+    expect(screen.getByTitle('Deezer')).toBeInTheDocument();
+    expect(container.querySelectorAll('svg.service-icon')).toHaveLength(2);
     expect(screen.getAllByText('yankvasya')).toHaveLength(2);
     expect(screen.getAllByText('Logout')).toHaveLength(2);
   });
@@ -50,10 +51,10 @@ describe('Header', () => {
     );
 
     await user.click(screen.getByText('👤 Accounts (2)'));
-    expect(screen.getByText('🟢')).toBeInTheDocument();
+    expect(screen.getByTitle('Spotify')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('outside'));
-    expect(screen.queryByText('🟢')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Spotify')).not.toBeInTheDocument();
   });
 
   it('renders no accounts button at all when nothing is logged in', () => {

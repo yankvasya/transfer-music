@@ -3,7 +3,7 @@ import { parseTracklist } from '../utils/parser';
 import type { ParsedTrack } from '../utils/parser';
 import type { ImportSummary, MatchResult, ResumeData, ReviewTrack, TrackCandidate } from '../types';
 import type { ApiRequest, DestinationConnector } from '../connectors/types';
-import { SERVICE_META } from '../serviceMeta';
+import { ServiceIcon } from './ServiceIcon';
 
 const CONCURRENCY = 5; // parallel searches; keep modest to stay well under most APIs' rate limits
 const PERSIST_EVERY = 20; // tracks between resumable checkpoints
@@ -783,7 +783,7 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           <div className="form-actions center-align mt-4">
             {playlistUrl && (
               <a href={playlistUrl} target="_blank" rel="noopener noreferrer" className="btn btn-success btn-lg">
-                {SERVICE_META[connector.id].icon} Open {connector.label} Playlist
+                <ServiceIcon service={connector.id} size={16} /> Open {connector.label} Playlist
               </a>
             )}
             <button className="btn btn-outline" onClick={onBackToList}>

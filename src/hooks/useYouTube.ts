@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
-import { useStoredValue } from './useStoredValue';
 import { useTokenStorage } from './useTokenStorage';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -20,7 +19,9 @@ export interface QuotaExceeded {
 }
 
 export function useYouTube() {
-  const [clientId, setClientId] = useStoredValue('youtube_custom_client_id', import.meta.env.VITE_YOUTUBE_CLIENT_ID);
+  // Shared app (this app's own Client ID), not a per-user credential — see OAuthLoginUI.
+  const clientId = import.meta.env.VITE_YOUTUBE_CLIENT_ID || '';
+  const isConfigured = !!clientId;
   const { accessToken, refreshToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('youtube');
 
   const [user, setUser] = useState<YouTubeUser | null>(null);
@@ -87,8 +88,8 @@ export function useYouTube() {
   }, [accessToken, tokenExpiry, refreshYouTubeToken]);
 
   const login = useCallback(async () => {
-    if (!clientId) {
-      alert('Please enter or configure a Google OAuth Client ID first.');
+    if (!isConfigured) {
+      alert('YouTube login is not configured on this deployment yet.');
       return;
     }
 
@@ -114,7 +115,7 @@ export function useYouTube() {
     });
 
     window.location.href = `${AUTHORIZE_ENDPOINT}?${params.toString()}`;
-  }, [clientId, getRedirectUri]);
+  }, [clientId, isConfigured, getRedirectUri]);
 
   const exchangeCodeForTokens = useCallback(async (code: string) => {
     const codeVerifier = localStorage.getItem('youtube_code_verifier');
@@ -150,7 +151,7 @@ export function useYouTube() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
       console.error('Error during YouTube token exchange:', error);
-      alert('Failed to connect to YouTube. Check your Client ID configuration.');
+      alert('Failed to connect to YouTube.');
     } finally {
       setIsLoading(false);
     }
@@ -254,8 +255,7 @@ export function useYouTube() {
   }, [getValidToken, refreshYouTubeToken]);
 
   return {
-    clientId,
-    setClientId,
+    isConfigured,
     accessToken,
     user,
     isAuthenticated,

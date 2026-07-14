@@ -1,52 +1,49 @@
 import React from 'react';
-import { ClientIdSetup } from './ClientIdSetup';
 import { LoginButton } from './LoginButton';
+import { ServiceIcon } from './ServiceIcon';
+import type { ServiceId } from '../types';
 
 interface OAuthLoginUIProps {
-  clientId: string;
-  setClientId: (id: string) => void;
+  service: ServiceId;
+  isConfigured: boolean;
   isLoading: boolean;
   login: () => void;
   serviceName: string;
-  helpText: string;
   loginDescription: string;
-  loginIcon: string;
   loginButtonClass: string;
-  redirectUri: string;
 }
 
 // Login UI for services using the redirect-based OAuth PKCE flow (Spotify, YouTube):
-// the user registers their own Client ID, then clicks through to the provider's
-// consent screen. Yandex uses a different flow entirely (see YandexDeviceLogin).
+// both use this app's own shared Client ID (a VITE_ env var) rather than asking each
+// visitor to register their own app. Yandex uses a different flow entirely (see
+// YandexDeviceLogin); Deezer has its own near-identical shared-app variant (see
+// DeezerLoginUI) since it needs a server-side secret too, which this flow doesn't.
 export const OAuthLoginUI: React.FC<OAuthLoginUIProps> = ({
-  clientId,
-  setClientId,
+  service,
+  isConfigured,
   isLoading,
   login,
   serviceName,
-  helpText,
   loginDescription,
-  loginIcon,
   loginButtonClass,
-  redirectUri,
-}) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-    <ClientIdSetup
+}) => {
+  if (!isConfigured) {
+    return (
+      <div className="glass-panel center-align">
+        <h2>❌ {serviceName} isn't configured on this deployment</h2>
+        <p className="description-text">This deployment is missing its {serviceName} Client ID environment variable.</p>
+      </div>
+    );
+  }
+
+  return (
+    <LoginButton
+      onLogin={login}
+      isLoading={isLoading}
       serviceName={serviceName}
-      helpText={helpText}
-      currentClientId={clientId}
-      onSave={setClientId}
-      redirectUri={redirectUri}
+      icon={<ServiceIcon service={service} size={32} />}
+      description={loginDescription}
+      buttonClassName={loginButtonClass}
     />
-    {clientId && (
-      <LoginButton
-        onLogin={login}
-        isLoading={isLoading}
-        serviceName={serviceName}
-        icon={loginIcon}
-        description={loginDescription}
-        buttonClassName={loginButtonClass}
-      />
-    )}
-  </div>
-);
+  );
+};

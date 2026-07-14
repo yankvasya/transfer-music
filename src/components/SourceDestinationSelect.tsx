@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
+import { ServiceIcon } from './ServiceIcon';
 
 export type ConnectorId = 'plain-text' | 'spotify' | 'youtube' | 'yandex-music' | 'deezer';
 
 interface ConnectorOption {
   id: ConnectorId;
-  icon: string;
+  icon: React.ReactNode;
   label: string;
 }
 
 const CONNECTORS: ConnectorOption[] = [
   { id: 'plain-text', icon: '📋', label: 'Plain Text' },
-  { id: 'spotify', icon: '🎧', label: 'Spotify' },
-  { id: 'youtube', icon: '▶️', label: 'YouTube' },
-  { id: 'yandex-music', icon: '🎵', label: 'Yandex Music' },
-  { id: 'deezer', icon: '🎶', label: 'Deezer' },
+  { id: 'spotify', icon: <ServiceIcon service="spotify" size={28} />, label: 'Spotify' },
+  { id: 'youtube', icon: <ServiceIcon service="youtube" size={28} />, label: 'YouTube' },
+  { id: 'yandex-music', icon: <ServiceIcon service="yandex-music" size={28} />, label: 'Yandex Music' },
+  { id: 'deezer', icon: <ServiceIcon service="deezer" size={28} />, label: 'Deezer' },
 ];
 
 // Any two distinct connectors can pair — a service can go through Plain Text, or
