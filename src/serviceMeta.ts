@@ -15,27 +15,26 @@ export interface ServiceAuth {
 
 interface ServiceMeta {
   name: string;
-  icon: string;
   buttonClass: string;
   loginDescription: string;
 }
 
+// Real per-service brand icons live in ServiceIcon.tsx, not here — that component takes
+// a ServiceId directly, so callers don't need to round-trip through this Record just to
+// get an icon anymore.
 export const SERVICE_META: Record<ServiceId, ServiceMeta> = {
   spotify: {
     name: 'Spotify',
-    icon: '🟢',
     buttonClass: 'btn-spotify',
     loginDescription: 'Log in with your Spotify account to authorize creating playlists and importing your tracks.',
   },
   youtube: {
     name: 'YouTube',
-    icon: '▶️',
     buttonClass: 'btn-youtube',
     loginDescription: 'Log in with your Google account to authorize creating YouTube playlists and importing videos.',
   },
   'yandex-music': {
     name: 'Yandex Music',
-    icon: '🎵',
     buttonClass: 'btn-yandex',
     // loginDescription/buttonClass are unused by its actual login UI (YandexDeviceLogin)
     // but kept for a complete Record.
@@ -43,7 +42,6 @@ export const SERVICE_META: Record<ServiceId, ServiceMeta> = {
   },
   deezer: {
     name: 'Deezer',
-    icon: '🎶',
     buttonClass: 'btn-deezer',
     // loginDescription is unused by DeezerLoginUI (which has its own copy) but kept for
     // a complete Record.

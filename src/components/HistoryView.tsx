@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import type { HistoryEntry } from '../hooks/useHistory';
 import { SERVICE_META } from '../serviceMeta';
+import { ServiceIcon } from './ServiceIcon';
 
 interface HistoryViewProps {
   history: HistoryEntry[];
@@ -63,7 +64,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
                 <div className="history-item-info">
                   <div className="log-item-raw">
                     <span className="history-service-icon" title={meta.name}>
-                      {meta.icon}
+                      <ServiceIcon service={entry.service} size={16} />
                     </span>{' '}
                     {entry.name}
                     {entry.status === 'incomplete' && (

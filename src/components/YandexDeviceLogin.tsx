@@ -1,5 +1,6 @@
 import React from 'react';
 import type { YandexDeviceCode } from '../hooks/useYandexMusic';
+import { ServiceIcon } from './ServiceIcon';
 
 interface YandexDeviceLoginProps {
   deviceCode: YandexDeviceCode | null;
@@ -16,7 +17,9 @@ export const YandexDeviceLogin: React.FC<YandexDeviceLoginProps> = ({ deviceCode
   if (deviceCode) {
     return (
       <div className="login-panel glass-panel center-align">
-        <div className="login-icon-large">🎵</div>
+        <div className="login-icon-large">
+          <ServiceIcon service="yandex-music" size={32} />
+        </div>
         <h2>Confirm on Yandex</h2>
         <p className="description-text">Open the link below and enter this code to finish connecting your account.</p>
 
@@ -45,7 +48,9 @@ export const YandexDeviceLogin: React.FC<YandexDeviceLoginProps> = ({ deviceCode
 
   return (
     <div className="login-panel glass-panel center-align">
-      <div className="login-icon-large">🎵</div>
+      <div className="login-icon-large">
+        <ServiceIcon service="yandex-music" size={32} />
+      </div>
       <h2>Connect to Yandex Music</h2>
       <p className="description-text">
         Log in with your Yandex account to authorize creating playlists and importing your tracks.
@@ -58,7 +63,10 @@ export const YandexDeviceLogin: React.FC<YandexDeviceLoginProps> = ({ deviceCode
           <span className="spinner">Requesting code...</span>
         ) : (
           <>
-            <span className="spotify-logo-small">🎵</span> Login with Yandex Music
+            <span className="spotify-logo-small">
+              <ServiceIcon service="yandex-music" size={18} />
+            </span>{' '}
+            Login with Yandex Music
           </>
         )}
       </button>

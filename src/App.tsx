@@ -101,12 +101,12 @@ function App() {
     const hook = service === 'spotify' ? spotify : youtube;
     return (
       <OAuthLoginUI
+        service={service}
         isConfigured={hook.isConfigured}
         isLoading={hook.isLoading}
         login={hook.login}
         serviceName={meta.name}
         loginDescription={meta.loginDescription}
-        loginIcon={meta.icon}
         loginButtonClass={meta.buttonClass}
       />
     );
@@ -182,8 +182,8 @@ function App() {
       const auth = authByService[id];
       const user = auth.user!;
       return {
+        service: id,
         serviceName: SERVICE_META[id].name,
-        icon: SERVICE_META[id].icon,
         displayName: user.display_name,
         imageUrl: user.images?.[0]?.url,
         onLogout: auth.logout,

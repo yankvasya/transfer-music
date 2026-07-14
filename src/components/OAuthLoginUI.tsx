@@ -1,13 +1,15 @@
 import React from 'react';
 import { LoginButton } from './LoginButton';
+import { ServiceIcon } from './ServiceIcon';
+import type { ServiceId } from '../types';
 
 interface OAuthLoginUIProps {
+  service: ServiceId;
   isConfigured: boolean;
   isLoading: boolean;
   login: () => void;
   serviceName: string;
   loginDescription: string;
-  loginIcon: string;
   loginButtonClass: string;
 }
 
@@ -17,12 +19,12 @@ interface OAuthLoginUIProps {
 // YandexDeviceLogin); Deezer has its own near-identical shared-app variant (see
 // DeezerLoginUI) since it needs a server-side secret too, which this flow doesn't.
 export const OAuthLoginUI: React.FC<OAuthLoginUIProps> = ({
+  service,
   isConfigured,
   isLoading,
   login,
   serviceName,
   loginDescription,
-  loginIcon,
   loginButtonClass,
 }) => {
   if (!isConfigured) {
@@ -39,7 +41,7 @@ export const OAuthLoginUI: React.FC<OAuthLoginUIProps> = ({
       onLogin={login}
       isLoading={isLoading}
       serviceName={serviceName}
-      icon={loginIcon}
+      icon={<ServiceIcon service={service} size={32} />}
       description={loginDescription}
       buttonClassName={loginButtonClass}
     />

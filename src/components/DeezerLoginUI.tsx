@@ -1,5 +1,6 @@
 import React from 'react';
 import { LoginButton } from './LoginButton';
+import { ServiceIcon } from './ServiceIcon';
 
 interface DeezerLoginUIProps {
   isConfigured: boolean;
@@ -29,7 +30,7 @@ export const DeezerLoginUI: React.FC<DeezerLoginUIProps> = ({ isConfigured, isLo
       onLogin={login}
       isLoading={isLoading}
       serviceName="Deezer"
-      icon="🎶"
+      icon={<ServiceIcon service="deezer" size={32} />}
       description="Log in with your Deezer account to authorize creating playlists and importing your tracks."
       buttonClassName="btn-deezer"
       securityNote="Your access token is stored only in your own browser."

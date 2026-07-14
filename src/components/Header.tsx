@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ServiceIcon } from './ServiceIcon';
+import type { ServiceId } from '../types';
 
 export interface ConnectedAccount {
+  service: ServiceId;
   serviceName: string;
-  icon: string;
   displayName: string;
   imageUrl?: string;
   onLogout: () => void;
@@ -64,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onShowA
                       <div className="user-avatar-placeholder">{account.displayName.charAt(0).toUpperCase()}</div>
                     )}
                     <span className="accounts-dropdown-service" title={account.serviceName}>
-                      {account.icon}
+                      <ServiceIcon service={account.service} size={18} />
                     </span>
                     <span className="user-name">{account.displayName}</span>
                     <button className="btn btn-sm btn-outline-danger" onClick={account.onLogout}>
