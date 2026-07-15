@@ -121,6 +121,11 @@ export function useSpotify() {
       code_challenge: codeChallenge,
       scope: scope,
       state: state,
+      // Without this, a browser that's already got an active Spotify session skips the
+      // consent screen entirely and silently re-authorizes as whichever account that is —
+      // even right after this app's own logout. show_dialog forces the screen (with a
+      // "Not you?" link) every time instead.
+      show_dialog: 'true',
     });
 
     window.location.href = `${AUTHORIZE_ENDPOINT}?${params.toString()}`;

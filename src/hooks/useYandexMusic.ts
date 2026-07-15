@@ -260,7 +260,22 @@ export function useYandexMusic() {
         }
       }
 
-      throw new Error(`Yandex Music API error [${response.status}]: ${data.error_description || data.error || text || response.statusText}`);
+      // data.error is a flat string on the OAuth proxy's own errors, but the underlying
+      // Yandex Music API (e.g. a 451 geo-block) wraps it as { name, message } instead —
+      // interpolating that object directly into the template literal below stringified it
+      // as the literal text "[object Object]" rather than anything readable.
+      let errorDetail: string;
+      if (data.error_description) {
+        errorDetail = data.error_description;
+      } else if (typeof data.error === 'string') {
+        errorDetail = data.error;
+      } else if (data.error && typeof data.error === 'object') {
+        errorDetail = data.error.message ? `${data.error.name}: ${data.error.message}` : data.error.name;
+      } else {
+        errorDetail = text || response.statusText;
+      }
+
+      throw new Error(`Yandex Music API error [${response.status}]: ${errorDetail}`);
     },
     [getValidToken, refreshYandexToken]
   );
