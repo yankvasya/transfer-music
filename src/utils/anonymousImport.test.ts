@@ -2,15 +2,15 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { fetchPlaylistFromLink } from './anonymousImport';
 
 describe('fetchPlaylistFromLink (Deezer)', () => {
-  const originalFetch = global.fetch;
+  const originalFetch = globalThis.fetch;
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
   });
 
   it('fetches the playlist name and track lines with no Authorization header', async () => {
     const calls: RequestInfo[] = [];
-    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push(input as RequestInfo);
       expect(init?.headers).toBeUndefined();
       const url = String(input);
@@ -29,7 +29,7 @@ describe('fetchPlaylistFromLink (Deezer)', () => {
   });
 
   it('throws a friendly error for a nonexistent/private playlist', async () => {
-    global.fetch = vi.fn(async () => new Response(JSON.stringify({ error: { type: 'DataException', message: 'no data', code: 800 } }))) as unknown as typeof fetch;
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ error: { type: 'DataException', message: 'no data', code: 800 } }))) as unknown as typeof fetch;
 
     await expect(fetchPlaylistFromLink({ service: 'deezer', playlistId: 'bad' })).rejects.toThrow(
       /doesn't exist or isn't public/
@@ -37,7 +37,7 @@ describe('fetchPlaylistFromLink (Deezer)', () => {
   });
 
   it('throws when the playlist has no readable tracks', async () => {
-    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes('tracks')) {
         return new Response(JSON.stringify({ data: [{ title: 'Blocked', readable: false }], next: null }));

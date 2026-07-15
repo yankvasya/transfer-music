@@ -45,14 +45,14 @@ describe('TrackInput', () => {
   });
 
   describe('pasting a Deezer playlist link', () => {
-    const originalFetch = global.fetch;
+    const originalFetch = globalThis.fetch;
 
     afterEach(() => {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     });
 
     it('fetches the tracklist and fills the textarea with it', async () => {
-      global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
         if (url.includes('tracks')) {
           return new Response(JSON.stringify({ data: [{ title: 'One More Time', artist: { name: 'Daft Punk' }, readable: true }], next: null }));
@@ -72,7 +72,7 @@ describe('TrackInput', () => {
     });
 
     it('shows an error and leaves the link in place when the fetch fails', async () => {
-      global.fetch = vi.fn(async () => new Response(JSON.stringify({ error: { type: 'DataException', message: 'no data', code: 800 } }))) as unknown as typeof fetch;
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ error: { type: 'DataException', message: 'no data', code: 800 } }))) as unknown as typeof fetch;
 
       const user = userEvent.setup();
       render(<TrackInput initialText="" onNext={vi.fn()} />);
@@ -85,7 +85,7 @@ describe('TrackInput', () => {
     });
 
     it('does not attempt a fetch for plain tracklist text', async () => {
-      global.fetch = vi.fn() as unknown as typeof fetch;
+      globalThis.fetch = vi.fn() as unknown as typeof fetch;
 
       const user = userEvent.setup();
       render(<TrackInput initialText="" onNext={vi.fn()} />);
@@ -93,7 +93,7 @@ describe('TrackInput', () => {
       await user.click(screen.getByPlaceholderText(/Deezer playlist link/));
       await user.paste('Daft Punk - One More Time');
 
-      expect(global.fetch).not.toHaveBeenCalled();
+      expect(globalThis.fetch).not.toHaveBeenCalled();
     });
   });
 });
