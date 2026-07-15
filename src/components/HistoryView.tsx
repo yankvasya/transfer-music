@@ -68,7 +68,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
                     </span>{' '}
                     {entry.name}
                     {entry.status === 'incomplete' && (
-                      <span className="badge badge-warning">Incomplete</span>
+                      <span className="badge badge-warning ml-1">Incomplete</span>
                     )}
                   </div>
                   <div className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
