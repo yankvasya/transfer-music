@@ -57,7 +57,6 @@ function LogPanel<T>({ title, items, emptyLabel, headerExtra, renderItem }: LogP
       <div className="log-header-row">
         <h4>{title} ({items.length})</h4>
         <div className="log-header-actions">
-          {headerExtra}
           {expanded && hasMore && (
             <button type="button" className="btn btn-sm btn-outline" onClick={scrollToTop}>
               ↑ Top
@@ -70,15 +69,11 @@ function LogPanel<T>({ title, items, emptyLabel, headerExtra, renderItem }: LogP
           )}
         </div>
       </div>
+      {headerExtra && <div className="log-header-extra">{headerExtra}</div>}
       <div className="log-list" ref={listRef}>
         {visible.map(renderItem)}
         {items.length === 0 && <div className="empty-log">{emptyLabel}</div>}
       </div>
-      {expanded && hasMore && (
-        <button type="button" className="btn btn-sm btn-outline log-collapse-bottom" onClick={() => setExpanded(false)}>
-          ↑ Collapse
-        </button>
-      )}
     </div>
   );
 }
@@ -856,8 +851,8 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
             <div key={idx} className="log-item warning">
               <span className="log-item-raw">{item.track.raw}</span>
               <span className="arrow">➔</span>
-              <span className="log-item-error" style={{ color: 'var(--text-secondary)' }}>
-                already added as {item.matchedArtist} - {item.matchedName}
+              <span className="log-item-match">
+                {item.matchedArtist} - {item.matchedName}
               </span>
             </div>
           )}

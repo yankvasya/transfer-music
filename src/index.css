@@ -680,9 +680,12 @@ textarea.form-control {
   flex-shrink: 0;
 }
 
-.log-collapse-bottom {
-  margin-top: 0.75rem;
-  align-self: center;
+.log-header-extra {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
 }
 
 .log-list {
@@ -790,6 +793,16 @@ textarea.form-control {
 
 .log-item-spotify:hover {
   text-decoration: underline;
+}
+
+.log-item-match {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
 }
 
 .log-item-error {
@@ -921,7 +934,6 @@ textarea.form-control {
 }
 
 .duplicate-warning {
-  margin: -0.75rem 0 1.5rem;
   font-size: 0.85rem;
   color: var(--warning-color);
   overflow-wrap: break-word;
@@ -1016,6 +1028,14 @@ textarea.form-control {
     margin-top: 0;
     transform: rotate(90deg);
   }
+}
+
+.ml-1 {
+  margin-left: 0.25rem;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
 }
 
 .mt-4 {
