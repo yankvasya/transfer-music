@@ -110,7 +110,10 @@ export function useYouTube() {
       code_challenge: codeChallenge,
       scope: 'https://www.googleapis.com/auth/youtube',
       access_type: 'offline',
-      prompt: 'consent',
+      // 'consent' alone re-asks for permissions but still silently reuses whichever
+      // Google account already has an active browser session — 'select_account' adds
+      // the account chooser so a user can actually pick a different one after logout.
+      prompt: 'select_account consent',
       state: state,
     });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { YandexDeviceCode } from '../hooks/useYandexMusic';
 import { ServiceIcon } from './ServiceIcon';
 
@@ -14,6 +14,24 @@ interface YandexDeviceLoginProps {
 // the OAuth Device Flow: request a code, show it with a link to Yandex's confirmation
 // page, then poll in the background until the user approves it there.
 export const YandexDeviceLogin: React.FC<YandexDeviceLoginProps> = ({ deviceCode, authStatus, authError, onStart, onCancel }) => {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  const handleCopyCode = async () => {
+    if (!deviceCode) return;
+    try {
+      // Some browsers leave a permission prompt hanging indefinitely instead of
+      // rejecting, so race it against a timeout rather than awaiting it forever.
+      await Promise.race([
+        navigator.clipboard.writeText(deviceCode.userCode),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500)),
+      ]);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('error');
+    }
+    setTimeout(() => setCopyStatus('idle'), 2500);
+  };
+
   if (deviceCode) {
     return (
       <div className="login-panel glass-panel center-align">
@@ -28,6 +46,9 @@ export const YandexDeviceLogin: React.FC<YandexDeviceLoginProps> = ({ deviceCode
             <code style={{ fontSize: '1.4rem', letterSpacing: '0.15em', textAlign: 'center', flex: 'none' }}>
               {deviceCode.userCode}
             </code>
+            <button type="button" className="btn btn-sm btn-outline" onClick={handleCopyCode}>
+              {copyStatus === 'copied' ? '✓ Copied!' : copyStatus === 'error' ? 'Copy failed' : '📋 Copy'}
+            </button>
           </div>
         </div>
 
