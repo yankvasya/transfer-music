@@ -73,7 +73,7 @@ export const PlaylistSetup: React.FC<PlaylistSetupProps> = ({
             required
           />
           {isDuplicateName && (
-            <p className="duplicate-warning">
+            <p className="duplicate-warning mt-2">
               ⚠ You already have a playlist named "{name.trim()}". {source.label} allows duplicate names, so a new,
               separate playlist will be created — rename it above if that's not what you want.
             </p>

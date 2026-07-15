@@ -921,7 +921,6 @@ textarea.form-control {
 }
 
 .duplicate-warning {
-  margin: -0.75rem 0 1.5rem;
   font-size: 0.85rem;
   color: var(--warning-color);
   overflow-wrap: break-word;
@@ -1016,6 +1015,10 @@ textarea.form-control {
     margin-top: 0;
     transform: rotate(90deg);
   }
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
 }
 
 .mt-4 {
