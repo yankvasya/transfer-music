@@ -112,6 +112,10 @@ describe('ImporterProgress', () => {
       />
     );
 
+    // Progress % must reflect the resumed starting point immediately, not just the
+    // "processed" count — otherwise a resumed 1388/5262 import shows a misleading 0%.
+    expect(screen.getByText('50% Completed')).toBeInTheDocument();
+
     await waitFor(() => expect(screen.getByText('Playlist import completed successfully!')).toBeInTheDocument());
 
     expect(calls.created).toBe(0); // reused resumeFrom.playlistId instead

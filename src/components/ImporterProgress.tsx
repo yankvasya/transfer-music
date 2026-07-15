@@ -99,7 +99,9 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   onDone,
 }) => {
   const [status, setStatus] = useState<'creating' | 'importing' | 'paused' | 'completed' | 'failed' | 'stopped'>('creating');
-  const [progress, setProgress] = useState(0); // 0 to 100
+  const [progress, setProgress] = useState(() =>
+    resumeFrom ? Math.round((resumeFrom.startIndex / tracks.length) * 100) : 0
+  ); // 0 to 100
   const [currentIndex, setCurrentIndex] = useState(resumeFrom?.startIndex ?? 0);
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(resumeFrom?.playlistUrl ?? null);
   // Exposed as state (not just a local var inside the import effect) so the manual

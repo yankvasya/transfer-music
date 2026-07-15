@@ -662,17 +662,21 @@ textarea.form-control {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
 .log-header-row h4 {
   margin-bottom: 0;
+  white-space: nowrap;
 }
 
 .log-header-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
@@ -815,6 +819,7 @@ textarea.form-control {
   font-size: 1.8rem;
   font-weight: 700;
   font-family: var(--font-heading);
+  margin-bottom: 0.5rem;
 }
 
 .badge-wrapper.success {
@@ -825,10 +830,16 @@ textarea.form-control {
   color: var(--warning-color);
 }
 
+.badge-wrapper.danger {
+  color: #f87171;
+}
+
 .completion-playlist-name {
   color: var(--text-secondary);
   font-size: 1.1rem;
   margin-top: 0.5rem;
+  overflow-wrap: break-word;
+  text-align: center;
 }
 
 .history-item {
@@ -913,6 +924,7 @@ textarea.form-control {
   margin: -0.75rem 0 1.5rem;
   font-size: 0.85rem;
   color: var(--warning-color);
+  overflow-wrap: break-word;
 }
 
 /* Source/Destination connector picker */
