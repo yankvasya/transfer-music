@@ -61,4 +61,26 @@ describe('Header', () => {
     render(<Header accounts={[]} onShowHistory={vi.fn()} onShowAbout={vi.fn()} onGoHome={vi.fn()} />);
     expect(screen.queryByText(/Accounts/)).not.toBeInTheDocument();
   });
+
+  it('cycles the theme toggle through auto -> light -> dark -> auto, stamping data-theme', async () => {
+    localStorage.clear();
+    document.documentElement.removeAttribute('data-theme');
+    const user = userEvent.setup();
+    render(<Header accounts={[]} onShowHistory={vi.fn()} onShowAbout={vi.fn()} onGoHome={vi.fn()} />);
+
+    const toggle = screen.getByTitle('Theme: matching your system');
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+
+    await user.click(toggle);
+    expect(screen.getByTitle('Theme: light')).toBeInTheDocument();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+
+    await user.click(screen.getByTitle('Theme: light'));
+    expect(screen.getByTitle('Theme: dark')).toBeInTheDocument();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+
+    await user.click(screen.getByTitle('Theme: dark'));
+    expect(screen.getByTitle('Theme: matching your system')).toBeInTheDocument();
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+  });
 });
