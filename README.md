@@ -12,7 +12,7 @@ Move playlists between **Spotify, YouTube, Yandex Music, and Deezer** — paste 
 
 ## What it does
 
-- **Import**: paste `Artist - Title` lines and create a real playlist on Spotify, YouTube, Yandex Music, or Deezer.
+- **Import**: paste `Artist - Title` lines and create a real playlist on Spotify, YouTube, Yandex Music, or Deezer — or paste a public Deezer playlist link instead and skip typing entirely, no login required to read it.
 - **Export**: turn any of your playlists on those services into a plain-text tracklist (copy or download).
 - **Direct bridge**: move one or more playlists straight from one service to another — no manual copy-paste tracklist step, with search, select-all, and filtering for large libraries.
 - **Bulk migration**: queue up several playlists at once; the queue pauses (rather than silently skipping ahead) if a connector-wide rate limit or quota is hit.
@@ -34,13 +34,13 @@ Each one needed a different auth flow, which is most of why this project exists 
 
 All four now log in through this app's own shared credentials — visitors just click "Login with X," no developer account or Client ID of their own required. The tradeoff: Spotify caps an unverified app at 25 total users and YouTube's `youtube` scope caps an unverified app at 100, both shared across every visitor this deployment ever gets, until going through that platform's app-review process. Deployed here anyway as the more realistic default for a project people are actually meant to try; if you fork this and expect real traffic, budget for that review.
 
-A couple of services were investigated and deliberately **not** added: VK Music (no OAuth path for audio scope — the only working method needs the user's raw account password, with real ban risk), and Apple Music / SoundCloud (both require a paid developer subscription just to register an app).
+A dozen other services were researched and deliberately **not** added — VK Music (no OAuth path for the audio scope at all), Apple Music / SoundCloud / Qobuz (a paid developer subscription just to register an app), Amazon Music / Anghami / Pandora (closed partner programs, no self-serve signup), Tidal (approval-gated, and third-party playlist writes aren't available yet), Audiomack (no self-serve app registration despite a real free API), Boomplay / SberZvuk (no public developer API found at all). Each has its own tracked issue with the specific reasoning — see [issues labeled `enhancement`](https://github.com/yankvasya/transfer-music/issues?q=is%3Aissue+label%3Aenhancement).
 
 ## Tech stack
 
 - **React 19 + TypeScript + Vite**, `react-router-dom` (query-param routing, not path segments — adding a service is a new `?type=` value, not new routes)
 - **Vercel serverless functions** (Web Fetch API handlers) for the services that need a CORS/auth proxy
-- **Vitest + React Testing Library** — 100+ tests, covering the core import loop (rate limiting, quota handling, resumability, duplicate detection, manual review), the bulk migration queue, and history persistence
+- **Vitest + React Testing Library** — 138 tests, covering the core import loop (rate limiting, quota handling, resumability, duplicate detection, manual review), the bulk migration queue, and history persistence
 - **GitHub Actions CI** — typecheck, build, lint, and the full test suite on every PR
 - No backend database — playlists and history live in the actual music services and the browser's `localStorage`, respectively
 
