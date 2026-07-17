@@ -8,7 +8,7 @@ Move playlists between **Spotify, YouTube, Yandex Music, and Deezer** — paste 
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<!-- Add a screenshot or short GIF of the picker + an import in progress here. -->
+![TransferMusic connector picker](docs/screenshot.png)
 
 ## What it does
 
