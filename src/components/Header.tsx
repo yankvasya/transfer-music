@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceIcon } from './ServiceIcon';
 import type { ServiceId } from '../types';
+import { useTheme } from '../hooks/useTheme';
+import type { Theme } from '../hooks/useTheme';
 
 export interface ConnectedAccount {
   service: ServiceId;
@@ -17,10 +19,15 @@ interface HeaderProps {
   onGoHome: () => void;
 }
 
+const THEME_CYCLE: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' };
+const THEME_ICON: Record<Theme, string> = { auto: '🖥️', light: '☀️', dark: '🌙' };
+const THEME_LABEL: Record<Theme, string> = { auto: 'Theme: matching your system', light: 'Theme: light', dark: 'Theme: dark' };
+
 // Logging into more than one or two services used to render each as its own inline chip,
 // which crowded the header fast. Collapsed into a single "Accounts (N)" button that opens
 // a dropdown listing each one instead.
 export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onShowAbout, onGoHome }) => {
+  const [theme, setTheme] = useTheme();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -78,6 +85,15 @@ export const Header: React.FC<HeaderProps> = ({ accounts, onShowHistory, onShowA
             )}
           </div>
         )}
+        <button
+          type="button"
+          className="btn btn-sm btn-outline"
+          onClick={() => setTheme(THEME_CYCLE[theme])}
+          title={THEME_LABEL[theme]}
+          aria-label={THEME_LABEL[theme]}
+        >
+          {THEME_ICON[theme]}
+        </button>
         <button className="btn btn-sm btn-outline" onClick={onShowAbout}>
           About
         </button>
