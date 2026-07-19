@@ -47,6 +47,29 @@ function similarity(a: string, b: string): number {
   return 1 - dist / Math.max(na.length, nb.length);
 }
 
+// Splits a comma-separated artist credit list ("Linkin Park, Pusha T, Stormzy") into
+// individual names.
+function artistSegments(s: string): string[] {
+  return s.split(',').map((seg) => seg.trim()).filter(Boolean);
+}
+
+// A search result's artist field often credits every featured artist ("Linkin Park,
+// Pusha T, Stormzy") while a pasted tracklist line usually names just the primary one
+// ("Linkin Park") — comparing the raw strings directly penalizes that length mismatch
+// even though it's the correct track. Comparing every segment of one against every
+// segment of the other and taking the best pairing finds that match without weakening
+// the case a plain single-artist mismatch is actually meant to catch (no commas means
+// this is exactly the same as a direct comparison).
+function artistSimilarity(a: string, b: string): number {
+  let best = 0;
+  for (const sa of artistSegments(a)) {
+    for (const sb of artistSegments(b)) {
+      best = Math.max(best, similarity(sa, sb));
+    }
+  }
+  return best;
+}
+
 export interface MatchQuery {
   artist: string;
   title: string;
@@ -58,7 +81,7 @@ export interface MatchQuery {
 // artist half at all, since there's nothing to compare.
 export function scoreMatch(query: MatchQuery, candidate: MatchQuery): number {
   const titleScore = similarity(query.title, candidate.title);
-  const artistScore = query.artist ? similarity(query.artist, candidate.artist) : 1;
+  const artistScore = query.artist ? artistSimilarity(query.artist, candidate.artist) : 1;
   return titleScore * 0.65 + artistScore * 0.35;
 }
 
