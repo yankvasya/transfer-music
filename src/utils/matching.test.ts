@@ -41,6 +41,22 @@ describe('scoreMatch', () => {
     expect(score).toBeGreaterThanOrEqual(MIN_REVIEW_THRESHOLD);
     expect(score).toBeLessThan(AUTO_ACCEPT_THRESHOLD);
   });
+
+  it('auto-accepts when the query names just the primary artist and the candidate credits featured artists too', () => {
+    const score = scoreMatch(
+      { artist: 'Linkin Park', title: 'Good Goodbye (feat. Pusha T & Stormzy)' },
+      { artist: 'Linkin Park, Pusha T, Stormzy', title: 'Good Goodbye (feat. Pusha T and Stormzy)' }
+    );
+    expect(score).toBeGreaterThanOrEqual(AUTO_ACCEPT_THRESHOLD);
+  });
+
+  it('still scores a genuinely different artist low even against a multi-artist credit list', () => {
+    const score = scoreMatch(
+      { artist: 'Some Other Artist', title: 'Good Goodbye' },
+      { artist: 'Linkin Park, Pusha T, Stormzy', title: 'Good Goodbye' }
+    );
+    expect(score).toBeLessThan(AUTO_ACCEPT_THRESHOLD);
+  });
 });
 
 describe('selectMatch', () => {
