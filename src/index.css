@@ -21,6 +21,7 @@
      interactive surfaces (form controls, hover states) — swapping just this one value
      per theme re-tints all of them at once, keeping each call site's own opacity intact. */
   --surface-tint-rgb: 255, 255, 255;
+  --textarea-bg: rgba(0, 0, 0, 0.2);
   color-scheme: dark;
 }
 
@@ -44,6 +45,7 @@
   --success-color: #047857;
   --info-color: #2563eb;
   --surface-tint-rgb: 0, 0, 0;
+  --textarea-bg: rgba(0, 0, 0, 0.04);
   color-scheme: light;
 }
 
@@ -64,6 +66,7 @@
     --success-color: #047857;
     --info-color: #2563eb;
     --surface-tint-rgb: 0, 0, 0;
+    --textarea-bg: rgba(0, 0, 0, 0.04);
     color-scheme: light;
   }
 }
@@ -313,7 +316,7 @@ textarea.form-control {
   font-size: 0.9rem;
   line-height: 1.5;
   letter-spacing: 0.05em;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--textarea-bg);
 }
 
 .checkbox-group {
