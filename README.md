@@ -78,6 +78,14 @@ npm run preview   # serve the production build locally
 
 Built for Vercel: `vercel.json` rewrites everything except `/api/*` to `index.html` (client-side routing via `BrowserRouter`), and the two proxy endpoints ship as Vercel serverless functions automatically.
 
+## Self-hosting
+
+The `api/` handlers use the Web Fetch API shape Vercel's runtime expects (`export default { fetch(request) }`) — `server.ts` is a small always-on Node process that runs those same, unmodified handlers outside of Vercel, translating between Node's `http` module and the Web `Request`/`Response` objects they expect.
+
+- `npm run build` produces the static frontend in `dist/`.
+- `npm run start:api` runs the API proxy on `process.env.PORT` (default `3001`), loading credentials from a `.env` file via `dotenv` — see `.env.example` for what's required. For a persistent process, something like `pm2 start "npx tsx server.ts" --name transfermusic-api` works too.
+- Point a reverse proxy (e.g. Caddy) at both: serve `dist/` as static files, and forward `/api/*` to `http://localhost:3001`.
+
 ## License
 
 [MIT](LICENSE)
