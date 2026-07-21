@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { scoreMatch, selectMatch, AUTO_ACCEPT_THRESHOLD, MIN_REVIEW_THRESHOLD } from './matching';
+import { scoreMatch, selectMatch, stripParentheticals, AUTO_ACCEPT_THRESHOLD, MIN_REVIEW_THRESHOLD } from './matching';
+
+describe('stripParentheticals', () => {
+  it('removes parenthetical and bracketed content and collapses the leftover whitespace', () => {
+    expect(stripParentheticals('Run Away (Moksi Remix)')).toBe('Run Away');
+    expect(stripParentheticals('All Day (Instant Party Mix) [Clean]')).toBe('All Day');
+  });
+
+  it('returns the original string unchanged when there is nothing to strip', () => {
+    expect(stripParentheticals('Let It Be')).toBe('Let It Be');
+  });
+});
 
 describe('scoreMatch', () => {
   it('scores an exact match as 1', () => {
@@ -104,5 +115,24 @@ describe('selectMatch', () => {
     if (result.status === 'needs_review') {
       expect(result.candidates.length).toBeLessThanOrEqual(5);
     }
+  });
+
+  it('forceReview downgrades what would otherwise auto-accept into needs_review instead', () => {
+    const result = selectMatch(
+      query,
+      [{ externalId: 'id1', title: 'Let It Be', artist: 'The Beatles', url: 'x' }],
+      { forceReview: true }
+    );
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('id1');
+    }
+  });
+
+  it('forceReview still returns not_found when nothing scores high enough for review at all', () => {
+    const result = selectMatch(query, [{ externalId: 'id1', title: 'Totally Different', artist: 'Someone Else', url: 'x' }], {
+      forceReview: true,
+    });
+    expect(result).toEqual({ status: 'not_found' });
   });
 });

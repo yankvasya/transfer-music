@@ -1,5 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
-import { selectMatch } from '../utils/matching';
+import { selectMatch, stripParentheticals } from '../utils/matching';
 
 export const spotifyDestination: DestinationConnector = {
   id: 'spotify',
@@ -15,22 +15,43 @@ export const spotifyDestination: DestinationConnector = {
   },
 
   async searchTrack(apiRequest, track) {
-    const query = track.artist ? `artist:${track.artist} track:${track.title}` : track.title;
-    const res = await apiRequest(`/search?q=${encodeURIComponent(query)}&type=track&limit=5`);
+    const search = async (title: string) => {
+      const query = track.artist ? `artist:${track.artist} track:${title}` : title;
+      const res = await apiRequest(`/search?q=${encodeURIComponent(query)}&type=track&limit=5`);
+      if (res && res.isRateLimited) {
+        return { ok: false as const, waitSeconds: res.waitSeconds };
+      }
+      const items = res?.tracks?.items || [];
+      return {
+        ok: true as const,
+        candidates: items.map((item: any) => ({
+          externalId: item.uri,
+          title: item.name,
+          artist: (item.artists || []).map((a: any) => a.name).join(', '),
+          url: item.external_urls.spotify,
+        })),
+      };
+    };
 
-    if (res && res.isRateLimited) {
-      return { status: 'rate_limited', waitSeconds: res.waitSeconds };
+    const first = await search(track.title);
+    if (!first.ok) return { status: 'rate_limited' as const, waitSeconds: first.waitSeconds };
+
+    let result = selectMatch(track, first.candidates);
+
+    // A remix/version tag that isn't in Spotify's catalog verbatim (e.g. "(Moksi Remix)")
+    // makes the field-scoped track: query return nothing at all — retry once with that
+    // stripped out before giving up, so at least the base track shows up for review
+    // instead of a flat "not found" the user has to manually retype.
+    if (result.status === 'not_found') {
+      const simplified = stripParentheticals(track.title);
+      if (simplified && simplified !== track.title) {
+        const second = await search(simplified);
+        if (!second.ok) return { status: 'rate_limited' as const, waitSeconds: second.waitSeconds };
+        result = selectMatch(track, second.candidates, { forceReview: true });
+      }
     }
 
-    const items = res?.tracks?.items || [];
-    const candidates = items.map((item: any) => ({
-      externalId: item.uri,
-      title: item.name,
-      artist: (item.artists || []).map((a: any) => a.name).join(', '),
-      url: item.external_urls.spotify,
-    }));
-
-    return selectMatch(track, candidates);
+    return result;
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {

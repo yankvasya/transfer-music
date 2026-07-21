@@ -1,5 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
-import { selectMatch } from '../utils/matching';
+import { selectMatch, stripParentheticals } from '../utils/matching';
 
 const API_BASE = 'https://api.deezer.com';
 
@@ -31,23 +31,41 @@ export const deezerDestination: DestinationConnector = {
   },
 
   async searchTrack(apiRequest, track) {
-    const query = track.artist ? `${track.artist} ${track.title}` : track.title;
-    const res = await apiRequest(`/search?q=${encodeURIComponent(query)}`);
+    const search = async (title: string) => {
+      const query = track.artist ? `${track.artist} ${title}` : title;
+      const res = await apiRequest(`/search?q=${encodeURIComponent(query)}`);
+      if (res && res.isRateLimited) {
+        return { ok: false as const, waitSeconds: res.waitSeconds };
+      }
+      const candidates = (res?.data || [])
+        .filter((t: any) => t.readable !== false)
+        .map((t: any) => ({
+          externalId: String(t.id),
+          title: t.title,
+          artist: t.artist?.name ?? '',
+          url: t.link,
+        }));
+      return { ok: true as const, candidates };
+    };
 
-    if (res && res.isRateLimited) {
-      return { status: 'rate_limited', waitSeconds: res.waitSeconds };
+    const first = await search(track.title);
+    if (!first.ok) return { status: 'rate_limited' as const, waitSeconds: first.waitSeconds };
+
+    let result = selectMatch(track, first.candidates);
+
+    // A remix/version tag the exact search didn't turn up anything for — retry once with
+    // it stripped out before giving up, so the base track at least surfaces for review
+    // instead of a flat "not found".
+    if (result.status === 'not_found') {
+      const simplified = stripParentheticals(track.title);
+      if (simplified && simplified !== track.title) {
+        const second = await search(simplified);
+        if (!second.ok) return { status: 'rate_limited' as const, waitSeconds: second.waitSeconds };
+        result = selectMatch(track, second.candidates, { forceReview: true });
+      }
     }
 
-    const candidates = (res?.data || [])
-      .filter((t: any) => t.readable !== false)
-      .map((t: any) => ({
-        externalId: String(t.id),
-        title: t.title,
-        artist: t.artist?.name ?? '',
-        url: t.link,
-      }));
-
-    return selectMatch(track, candidates);
+    return result;
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {

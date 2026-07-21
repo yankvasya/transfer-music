@@ -73,6 +73,60 @@ describe('spotifyDestination.searchTrack', () => {
     const result = await spotifyDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
     expect(result).toEqual({ status: 'rate_limited', waitSeconds: 12 });
   });
+
+  it('retries with the remix tag stripped when the exact title returns nothing, landing in needs_review even at high confidence', async () => {
+    const { apiRequest, calls } = createMockApiRequest((_endpoint, _options, callIndex) => {
+      if (callIndex === 0) return { tracks: { items: [] } }; // exact "(Moksi Remix)" title: nothing
+      return {
+        tracks: {
+          items: [
+            { uri: 'base-track', name: 'Run Away', artists: [{ name: 'Yellow Claw' }], external_urls: { spotify: 'x' } },
+          ],
+        },
+      };
+    });
+
+    const result = await spotifyDestination.searchTrack(
+      apiRequest,
+      makeTrack('Yellow Claw - Run Away (Moksi Remix)', 'Yellow Claw', 'Run Away (Moksi Remix)')
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(decodeURIComponent(calls[1].endpoint)).toContain('track:Run Away');
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('base-track');
+    }
+  });
+
+  it('does not retry when the title has no parenthetical content to strip', async () => {
+    const { apiRequest, calls } = createMockApiRequest(() => ({ tracks: { items: [] } }));
+    const result = await spotifyDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
+    expect(calls).toHaveLength(1);
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  it('stays not_found when the simplified retry also comes up empty', async () => {
+    const { apiRequest, calls } = createMockApiRequest(() => ({ tracks: { items: [] } }));
+    const result = await spotifyDestination.searchTrack(
+      apiRequest,
+      makeTrack('Artist - Song (Some Rare Remix)', 'Artist', 'Song (Some Rare Remix)')
+    );
+    expect(calls).toHaveLength(2);
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  it('surfaces a rate limit hit on the retry attempt itself, not just the first one', async () => {
+    const { apiRequest } = createMockApiRequest((_endpoint, _options, callIndex) => {
+      if (callIndex === 0) return { tracks: { items: [] } };
+      return { isRateLimited: true, waitSeconds: 5 };
+    });
+    const result = await spotifyDestination.searchTrack(
+      apiRequest,
+      makeTrack('Artist - Song (Remix)', 'Artist', 'Song (Remix)')
+    );
+    expect(result).toEqual({ status: 'rate_limited', waitSeconds: 5 });
+  });
 });
 
 describe('spotifyDestination.addTracks', () => {

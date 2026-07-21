@@ -75,6 +75,16 @@ export interface MatchQuery {
   title: string;
 }
 
+// Strips the same parenthetical/bracketed content scoring already ignores (remix/version
+// tags, "(feat. X)", etc.), so a second search attempt can cast a wider net when the
+// exact wording — a remix name the destination's catalog doesn't have verbatim — returns
+// nothing at all. Returns the original string unchanged if there's nothing to strip, so
+// callers can tell "no parentheses, retrying would just repeat the same search" apart
+// from "there was something to try without."
+export function stripParentheticals(title: string): string {
+  return title.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 // Title carries more weight than artist — artist-name formatting varies a lot in
 // practice ("The Beatles" vs "Beatles", featured-artist lists, etc.) and shouldn't sink
 // an otherwise-clear title match. A query with no parsed artist doesn't penalize the
@@ -104,7 +114,13 @@ export interface RawCandidate {
 // anything below the review floor, and either auto-accept the top one, hand back a
 // shortlist for the user to pick from, or report nothing usable was found. Centralized
 // here (rather than duplicated per connector) so all four services behave identically.
-export function selectMatch(query: MatchQuery, candidates: RawCandidate[]) {
+//
+// forceReview: set by a connector's fallback search (see stripParentheticals) — a match
+// found only by simplifying the query means the exact wording asked for isn't in the
+// destination's catalog, so even a high-confidence candidate might be a *different*
+// version of the track than the one requested. Surfacing it for a human to confirm
+// rather than silently substituting it in is the safe direction for that uncertainty.
+export function selectMatch(query: MatchQuery, candidates: RawCandidate[], options: { forceReview?: boolean } = {}) {
   const scored = candidates
     .map((c) => ({ ...c, confidence: scoreMatch(query, c) }))
     .filter((c) => c.confidence >= MIN_REVIEW_THRESHOLD)
@@ -114,7 +130,7 @@ export function selectMatch(query: MatchQuery, candidates: RawCandidate[]) {
     return { status: 'not_found' as const };
   }
 
-  if (scored[0].confidence >= AUTO_ACCEPT_THRESHOLD) {
+  if (!options.forceReview && scored[0].confidence >= AUTO_ACCEPT_THRESHOLD) {
     const top = scored[0];
     return {
       status: 'found' as const,

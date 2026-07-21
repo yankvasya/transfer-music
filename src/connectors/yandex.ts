@@ -1,5 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
-import { selectMatch } from '../utils/matching';
+import { selectMatch, stripParentheticals } from '../utils/matching';
 
 // Yandex's playlist mutation endpoint identifies a track by BOTH its id and its album id
 // (no fallback if album id is omitted), but this app's connector interfaces only carry a
@@ -49,30 +49,50 @@ export const yandexDestination: DestinationConnector = {
   },
 
   async searchTrack(apiRequest, track) {
-    const query = track.artist ? `${track.artist} ${track.title}` : track.title;
-    const res = await apiRequest(
-      `/search?text=${encodeURIComponent(query)}&nocorrect=false&type=track&page=0&playlist-in-best=true`
-    );
+    const search = async (title: string) => {
+      const query = track.artist ? `${track.artist} ${title}` : title;
+      const res = await apiRequest(
+        `/search?text=${encodeURIComponent(query)}&nocorrect=false&type=track&page=0&playlist-in-best=true`
+      );
+      if (res && res.isRateLimited) {
+        return { ok: false as const, waitSeconds: res.waitSeconds };
+      }
+      const results = res?.tracks?.results || [];
+      // Playlist mutation needs an album id alongside the track id, so skip any result
+      // that doesn't have one (or is marked unavailable) before it's even a candidate.
+      const usable = results.filter((t: any) => t.available !== false && t.albums?.[0]?.id != null);
+      return {
+        ok: true as const,
+        candidates: usable.map((t: any) => {
+          const albumId = t.albums[0].id;
+          return {
+            externalId: packTrackId(t.id, albumId),
+            title: t.title,
+            artist: (t.artists || []).map((a: any) => a.name).join(', '),
+            url: `https://music.yandex.ru/album/${albumId}/track/${t.id}`,
+          };
+        }),
+      };
+    };
 
-    if (res && res.isRateLimited) {
-      return { status: 'rate_limited', waitSeconds: res.waitSeconds };
+    const first = await search(track.title);
+    if (!first.ok) return { status: 'rate_limited' as const, waitSeconds: first.waitSeconds };
+
+    let result = selectMatch(track, first.candidates);
+
+    // A remix/version tag the exact search didn't turn up anything for — retry once with
+    // it stripped out before giving up, so the base track at least surfaces for review
+    // instead of a flat "not found".
+    if (result.status === 'not_found') {
+      const simplified = stripParentheticals(track.title);
+      if (simplified && simplified !== track.title) {
+        const second = await search(simplified);
+        if (!second.ok) return { status: 'rate_limited' as const, waitSeconds: second.waitSeconds };
+        result = selectMatch(track, second.candidates, { forceReview: true });
+      }
     }
 
-    const results = res?.tracks?.results || [];
-    // Playlist mutation needs an album id alongside the track id, so skip any result
-    // that doesn't have one (or is marked unavailable) before it's even a candidate.
-    const usable = results.filter((t: any) => t.available !== false && t.albums?.[0]?.id != null);
-    const candidates = usable.map((t: any) => {
-      const albumId = t.albums[0].id;
-      return {
-        externalId: packTrackId(t.id, albumId),
-        title: t.title,
-        artist: (t.artists || []).map((a: any) => a.name).join(', '),
-        url: `https://music.yandex.ru/album/${albumId}/track/${t.id}`,
-      };
-    });
-
-    return selectMatch(track, candidates);
+    return result;
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {

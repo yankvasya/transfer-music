@@ -1,5 +1,5 @@
 import type { DestinationConnector, SourceConnector } from './types';
-import { selectMatch } from '../utils/matching';
+import { selectMatch, stripParentheticals } from '../utils/matching';
 
 export const youtubeDestination: DestinationConnector = {
   id: 'youtube',
@@ -25,26 +25,46 @@ export const youtubeDestination: DestinationConnector = {
   },
 
   async searchTrack(apiRequest, track) {
-    const query = track.artist ? `${track.artist} ${track.title}` : track.title;
-    const res = await apiRequest(`/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(query)}`);
+    const search = async (title: string) => {
+      const query = track.artist ? `${track.artist} ${title}` : title;
+      const res = await apiRequest(`/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(query)}`);
+      if (res && res.isQuotaExceeded) {
+        return { ok: false as const };
+      }
+      const items = res?.items || [];
+      // The channel name (e.g. "Adele - Topic", "Some VEVO") is a noisy stand-in for the
+      // actual artist, but it's the only per-result signal YouTube's search gives —
+      // scoring it low just means a track lands in review instead of wrongly
+      // auto-accepting, which is the safe direction for that noise to push things.
+      return {
+        ok: true as const,
+        candidates: items.map((item: any) => ({
+          externalId: item.id.videoId,
+          title: item.snippet.title,
+          artist: item.snippet.channelTitle,
+          url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+        })),
+      };
+    };
 
-    if (res && res.isQuotaExceeded) {
-      return { status: 'quota_exceeded' };
+    const first = await search(track.title);
+    if (!first.ok) return { status: 'quota_exceeded' as const };
+
+    let result = selectMatch(track, first.candidates);
+
+    // A remix/version tag the exact search didn't turn up anything for — retry once with
+    // it stripped out before giving up, so the base track at least surfaces for review
+    // instead of a flat "not found".
+    if (result.status === 'not_found') {
+      const simplified = stripParentheticals(track.title);
+      if (simplified && simplified !== track.title) {
+        const second = await search(simplified);
+        if (!second.ok) return { status: 'quota_exceeded' as const };
+        result = selectMatch(track, second.candidates, { forceReview: true });
+      }
     }
 
-    const items = res?.items || [];
-    // The channel name (e.g. "Adele - Topic", "Some VEVO") is a noisy stand-in for the
-    // actual artist, but it's the only per-result signal YouTube's search gives — scoring
-    // it low just means a track lands in review instead of wrongly auto-accepting, which
-    // is the safe direction for that noise to push things.
-    const candidates = items.map((item: any) => ({
-      externalId: item.id.videoId,
-      title: item.snippet.title,
-      artist: item.snippet.channelTitle,
-      url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-    }));
-
-    return selectMatch(track, candidates);
+    return result;
   },
 
   async addTracks(apiRequest, playlistId, externalIds) {
