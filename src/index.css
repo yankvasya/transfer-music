@@ -457,6 +457,12 @@ textarea.form-control {
   background: rgba(var(--surface-tint-rgb), 0.05);
 }
 
+.btn-outline.drag-over {
+  border-color: var(--accent-color);
+  background: rgba(29, 185, 84, 0.12);
+  color: var(--accent-color);
+}
+
 .btn-outline-success {
   background: transparent;
   border: 1px solid var(--accent-color);

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import type { HistoryEntry } from '../hooks/useHistory';
 import { SERVICE_META } from '../serviceMeta';
 import { ServiceIcon } from './ServiceIcon';
@@ -17,6 +17,7 @@ interface HistoryViewProps {
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onResume, onDelete, onImportHistory }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -30,11 +31,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
     URL.revokeObjectURL(url);
   };
 
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file next time
-    if (!file) return;
-
+  // Shared by both the hidden file input (click to browse) and drag-and-drop onto the
+  // Import History button — same file, same validation, same feedback either way.
+  const processFile = async (file: File) => {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
@@ -44,6 +43,31 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
     } catch {
       alert("Couldn't read that file — it doesn't look like a TransferMusic history export.");
     }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file next time
+    if (!file) return;
+    await processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await processFile(file);
   };
 
   return (
@@ -114,8 +138,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
             ⬇ Export History
           </button>
         )}
-        <button className="btn btn-outline" onClick={() => fileInputRef.current?.click()}>
-          ⬆ Import History
+        <button
+          type="button"
+          className={`btn btn-outline${isDragOver ? ' drag-over' : ''}`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          ⬆ Import History{isDragOver ? ' — drop to import' : ''}
         </button>
         <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
       </div>

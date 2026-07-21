@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HistoryView } from './HistoryView';
 import type { HistoryEntry } from '../hooks/useHistory';
@@ -93,5 +93,34 @@ describe('HistoryView', () => {
 
     expect(onImportHistory).not.toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining("doesn't look like"));
+  });
+
+  it('imports a backup file dropped onto the Import History button', async () => {
+    const onImportHistory = vi.fn().mockReturnValue(1);
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(<HistoryView history={[]} onBack={vi.fn()} onResume={vi.fn()} onDelete={vi.fn()} onImportHistory={onImportHistory} />);
+    const importButton = screen.getByText('⬆ Import History');
+    const file = new File([JSON.stringify([ENTRY])], 'backup.json', { type: 'application/json' });
+
+    fireEvent.dragOver(importButton, { dataTransfer: { files: [file] } });
+    expect(screen.getByText('⬆ Import History — drop to import')).toBeInTheDocument();
+
+    fireEvent.drop(importButton, { dataTransfer: { files: [file] } });
+
+    await vi.waitFor(() => expect(onImportHistory).toHaveBeenCalledWith([ENTRY]));
+    expect(alertSpy).toHaveBeenCalledWith('Restored 1 history entry.');
+    expect(screen.queryByText('⬆ Import History — drop to import')).not.toBeInTheDocument();
+  });
+
+  it('clears the drag-over state when the drag leaves without dropping', () => {
+    render(<HistoryView history={[]} onBack={vi.fn()} onResume={vi.fn()} onDelete={vi.fn()} onImportHistory={vi.fn()} />);
+    const importButton = screen.getByText('⬆ Import History');
+
+    fireEvent.dragOver(importButton, { dataTransfer: { files: [] } });
+    expect(screen.getByText('⬆ Import History — drop to import')).toBeInTheDocument();
+
+    fireEvent.dragLeave(importButton);
+    expect(screen.queryByText('⬆ Import History — drop to import')).not.toBeInTheDocument();
   });
 });
