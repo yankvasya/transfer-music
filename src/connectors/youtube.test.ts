@@ -60,6 +60,39 @@ describe('youtubeDestination.searchTrack', () => {
     const result = await youtubeDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
     expect(result).toEqual({ status: 'not_found' });
   });
+
+  it('retries with the remix tag stripped when the exact title returns nothing, landing in needs_review', async () => {
+    const { apiRequest, calls } = createMockApiRequest((_endpoint, _options, callIndex) => {
+      if (callIndex === 0) return { items: [] };
+      return { items: [{ id: { videoId: 'base-track' }, snippet: { title: 'Run Away', channelTitle: 'Yellow Claw' } }] };
+    });
+
+    const result = await youtubeDestination.searchTrack(
+      apiRequest,
+      makeTrack('Yellow Claw - Run Away (Moksi Remix)', 'Yellow Claw', 'Run Away (Moksi Remix)')
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('base-track');
+    }
+  });
+
+  it('does not retry when the title has no parenthetical content to strip', async () => {
+    const { apiRequest, calls } = createMockApiRequest(() => ({ items: [] }));
+    await youtubeDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('surfaces quota_exceeded hit on the retry attempt itself', async () => {
+    const { apiRequest } = createMockApiRequest((_endpoint, _options, callIndex) => {
+      if (callIndex === 0) return { items: [] };
+      return { isQuotaExceeded: true };
+    });
+    const result = await youtubeDestination.searchTrack(apiRequest, makeTrack('Artist - Song (Remix)', 'Artist', 'Song (Remix)'));
+    expect(result).toEqual({ status: 'quota_exceeded' });
+  });
 });
 
 describe('youtubeDestination.addTracks', () => {

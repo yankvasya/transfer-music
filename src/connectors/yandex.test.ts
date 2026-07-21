@@ -70,6 +70,34 @@ describe('yandexDestination.searchTrack', () => {
     const result = await yandexDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
     expect(result).toEqual({ status: 'not_found' });
   });
+
+  it('retries with the remix tag stripped when the exact title returns nothing, landing in needs_review', async () => {
+    const { apiRequest, calls } = createMockApiRequest((_endpoint, _options, callIndex) => {
+      if (callIndex === 0) return { tracks: { results: [] } };
+      return {
+        tracks: {
+          results: [{ id: 555, title: 'Run Away', artists: [{ name: 'Yellow Claw' }], albums: [{ id: 999 }], available: true }],
+        },
+      };
+    });
+
+    const result = await yandexDestination.searchTrack(
+      apiRequest,
+      makeTrack('Yellow Claw - Run Away (Moksi Remix)', 'Yellow Claw', 'Run Away (Moksi Remix)')
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('555:999');
+    }
+  });
+
+  it('does not retry when the title has no parenthetical content to strip', async () => {
+    const { apiRequest, calls } = createMockApiRequest(() => ({ tracks: { results: [] } }));
+    await yandexDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe('yandexDestination.addTracks', () => {

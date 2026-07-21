@@ -50,6 +50,30 @@ describe('deezerDestination.searchTrack', () => {
       expect(result.candidates[0].externalId).toBe('1');
     }
   });
+
+  it('retries with the remix tag stripped when the exact title returns nothing, landing in needs_review', async () => {
+    const { apiRequest, calls } = createMockApiRequest((_endpoint, _options, callIndex) => {
+      if (callIndex === 0) return { data: [] };
+      return { data: [{ id: 555, title: 'Run Away', artist: { name: 'Yellow Claw' }, link: 'x', readable: true }] };
+    });
+
+    const result = await deezerDestination.searchTrack(
+      apiRequest,
+      makeTrack('Yellow Claw - Run Away (Moksi Remix)', 'Yellow Claw', 'Run Away (Moksi Remix)')
+    );
+
+    expect(calls).toHaveLength(2);
+    expect(result.status).toBe('needs_review');
+    if (result.status === 'needs_review') {
+      expect(result.candidates[0].externalId).toBe('555');
+    }
+  });
+
+  it('does not retry when the title has no parenthetical content to strip', async () => {
+    const { apiRequest, calls } = createMockApiRequest(() => ({ data: [] }));
+    await deezerDestination.searchTrack(apiRequest, makeTrack('x - y', 'x', 'y'));
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe('deezerDestination.addTracks', () => {
