@@ -86,6 +86,14 @@ The `api/` handlers use the Web Fetch API shape Vercel's runtime expects (`expor
 - `npm run start:api` runs the API proxy on `process.env.PORT` (default `3001`), loading credentials from a `.env` file via `dotenv` — see `.env.example` for what's required. For a persistent process, something like `pm2 start "npx tsx server.ts" --name transfermusic-api` works too.
 - Point a reverse proxy (e.g. Caddy) at both: serve `dist/` as static files, and forward `/api/*` to `http://localhost:3001`.
 
+### Auto-deploy on push to main
+
+`.github/workflows/deploy.yml` SSHes into the server and runs `deploy.sh` (pull latest, `npm ci`, rebuild, restart the API process) after every push to `main`. To use it:
+
+1. On the server, clone this repo somewhere and get it running once manually (matches the path `deploy.sh`/the workflow expect — `~/projects/transfer-music` by default, edit the workflow's `script:` line if yours differs).
+2. In the GitHub repo's Settings → Secrets and variables → Actions, add three repository secrets: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY` (a private key whose matching public key is authorized on the server — dedicated deploy key recommended over reusing a personal one). This has to be done through GitHub's own UI/CLI, not by anyone else on your behalf.
+3. `deploy.sh` assumes the API process runs under `pm2` as `transfermusic-api` (matching the `start:api` example above) — edit its last line if you're using something else.
+
 ## License
 
 [MIT](LICENSE)
