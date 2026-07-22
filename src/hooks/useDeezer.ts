@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTokenStorage } from './useTokenStorage';
+import { useToast } from './useToast';
 
 const AUTHORIZE_ENDPOINT = 'https://connect.deezer.com/oauth/auth.php';
 const AUTH_PROXY = '/api/deezer-auth';
@@ -35,6 +36,7 @@ export function useDeezer() {
   const { accessToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('deezer', {
     hasRefreshToken: false,
   });
+  const { showToast } = useToast();
 
   const [user, setUser] = useState<DeezerUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -56,7 +58,7 @@ export function useDeezer() {
 
   const login = useCallback(() => {
     if (!isConfigured) {
-      alert('Deezer login is not configured on this deployment yet.');
+      showToast('Deezer login is not configured on this deployment yet.', 'error');
       return;
     }
 
@@ -73,7 +75,7 @@ export function useDeezer() {
     });
 
     window.location.href = `${AUTHORIZE_ENDPOINT}?${params.toString()}`;
-  }, [appId, isConfigured]);
+  }, [appId, isConfigured, showToast]);
 
   const exchangeCodeForTokens = useCallback(
     async (code: string) => {
@@ -92,12 +94,12 @@ export function useDeezer() {
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (err) {
         console.error('Error during Deezer token exchange:', err);
-        alert('Failed to connect to Deezer.');
+        showToast('Failed to connect to Deezer.', 'error');
       } finally {
         setIsLoading(false);
       }
     },
-    [saveTokens]
+    [saveTokens, showToast]
   );
 
   const fetchUser = useCallback(

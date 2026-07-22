@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
 import { useTokenStorage } from './useTokenStorage';
+import { useToast } from './useToast';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const AUTHORIZE_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -23,6 +24,7 @@ export function useYouTube() {
   const clientId = import.meta.env.VITE_YOUTUBE_CLIENT_ID || '';
   const isConfigured = !!clientId;
   const { accessToken, refreshToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('youtube');
+  const { showToast } = useToast();
 
   const [user, setUser] = useState<YouTubeUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -89,7 +91,7 @@ export function useYouTube() {
 
   const login = useCallback(async () => {
     if (!isConfigured) {
-      alert('YouTube login is not configured on this deployment yet.');
+      showToast('YouTube login is not configured on this deployment yet.', 'error');
       return;
     }
 
@@ -118,7 +120,7 @@ export function useYouTube() {
     });
 
     window.location.href = `${AUTHORIZE_ENDPOINT}?${params.toString()}`;
-  }, [clientId, isConfigured, getRedirectUri]);
+  }, [clientId, isConfigured, getRedirectUri, showToast]);
 
   const exchangeCodeForTokens = useCallback(async (code: string) => {
     const codeVerifier = localStorage.getItem('youtube_code_verifier');
@@ -154,11 +156,11 @@ export function useYouTube() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
       console.error('Error during YouTube token exchange:', error);
-      alert('Failed to connect to YouTube.');
+      showToast('Failed to connect to YouTube.', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [clientId, getRedirectUri, saveTokens]);
+  }, [clientId, getRedirectUri, saveTokens, showToast]);
 
   const fetchUser = useCallback(async (token: string) => {
     try {

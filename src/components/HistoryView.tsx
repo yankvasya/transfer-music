@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import type { HistoryEntry } from '../hooks/useHistory';
 import { SERVICE_META } from '../serviceMeta';
 import { ServiceIcon } from './ServiceIcon';
+import { useToast } from '../hooks/useToast';
 
 interface HistoryViewProps {
   history: HistoryEntry[];
@@ -18,6 +19,7 @@ interface HistoryViewProps {
 export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onResume, onDelete, onImportHistory }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const { showToast } = useToast();
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -39,9 +41,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, onBack, onRes
       const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) throw new Error('not an array');
       const count = onImportHistory(parsed);
-      alert(count > 0 ? `Restored ${count} history entr${count === 1 ? 'y' : 'ies'}.` : 'No valid history entries found in that file.');
+      if (count > 0) {
+        showToast(`Restored ${count} history entr${count === 1 ? 'y' : 'ies'}.`, 'success');
+      } else {
+        showToast('No valid history entries found in that file.', 'error');
+      }
     } catch {
-      alert("Couldn't read that file — it doesn't look like a TransferMusic history export.");
+      showToast("Couldn't read that file — it doesn't look like a TransferMusic history export.", 'error');
     }
   };
 
