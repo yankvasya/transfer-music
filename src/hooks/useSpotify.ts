@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
 import { useTokenStorage } from './useTokenStorage';
+import { useToast } from './useToast';
 
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token';
 const AUTHORIZE_ENDPOINT = 'https://accounts.spotify.com/authorize';
@@ -17,6 +18,7 @@ export function useSpotify() {
   const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
   const isConfigured = !!clientId;
   const { accessToken, refreshToken, tokenExpiry, saveTokens: storeTokens, clearTokens } = useTokenStorage('spotify');
+  const { showToast } = useToast();
 
   const [user, setUser] = useState<SpotifyUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -95,7 +97,7 @@ export function useSpotify() {
   // Initiate Spotify OAuth PKCE authorization redirect
   const login = useCallback(async () => {
     if (!isConfigured) {
-      alert('Spotify login is not configured on this deployment yet.');
+      showToast('Spotify login is not configured on this deployment yet.', 'error');
       return;
     }
 
@@ -129,7 +131,7 @@ export function useSpotify() {
     });
 
     window.location.href = `${AUTHORIZE_ENDPOINT}?${params.toString()}`;
-  }, [clientId, isConfigured, getRedirectUri]);
+  }, [clientId, isConfigured, getRedirectUri, showToast]);
 
   // Exchange auth code for tokens
   const exchangeCodeForTokens = useCallback(async (code: string) => {
@@ -169,11 +171,11 @@ export function useSpotify() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
       console.error('Error during token exchange:', error);
-      alert('Failed to connect to Spotify.');
+      showToast('Failed to connect to Spotify.', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [clientId, getRedirectUri, saveTokens]);
+  }, [clientId, getRedirectUri, saveTokens, showToast]);
 
   // Fetch current user details
   const fetchUser = useCallback(async (token: string) => {

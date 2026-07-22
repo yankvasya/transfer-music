@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HistoryView } from './HistoryView';
 import type { HistoryEntry } from '../hooks/useHistory';
+import { ToastProvider } from '../hooks/useToast';
 
 const ENTRY: HistoryEntry = {
   id: 'h1',
@@ -16,6 +17,20 @@ const ENTRY: HistoryEntry = {
   status: 'completed',
 };
 
+function renderHistoryView(props: Partial<React.ComponentProps<typeof HistoryView>> = {}) {
+  return render(
+    <HistoryView
+      history={[]}
+      onBack={vi.fn()}
+      onResume={vi.fn()}
+      onDelete={vi.fn()}
+      onImportHistory={vi.fn()}
+      {...props}
+    />,
+    { wrapper: ToastProvider }
+  );
+}
+
 describe('HistoryView', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -26,7 +41,7 @@ describe('HistoryView', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     const user = userEvent.setup();
 
-    render(<HistoryView history={[ENTRY]} onBack={vi.fn()} onResume={vi.fn()} onDelete={onDelete} onImportHistory={vi.fn()} />);
+    renderHistoryView({ history: [ENTRY], onDelete });
 
     await user.click(screen.getByText('✕'));
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Road Trip Mix'));
@@ -38,7 +53,7 @@ describe('HistoryView', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
 
-    render(<HistoryView history={[ENTRY]} onBack={vi.fn()} onResume={vi.fn()} onDelete={onDelete} onImportHistory={vi.fn()} />);
+    renderHistoryView({ history: [ENTRY], onDelete });
 
     await user.click(screen.getByText('✕'));
     expect(onDelete).toHaveBeenCalledWith('h1');
@@ -53,7 +68,7 @@ describe('HistoryView', () => {
     });
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
-    render(<HistoryView history={[ENTRY]} onBack={vi.fn()} onResume={vi.fn()} onDelete={vi.fn()} onImportHistory={vi.fn()} />);
+    renderHistoryView({ history: [ENTRY] });
     await user.click(screen.getByText('⬇ Export History'));
 
     expect(createObjectURL).toHaveBeenCalled();
@@ -64,34 +79,56 @@ describe('HistoryView', () => {
   it('imports a valid backup file and reports how many entries were restored', async () => {
     const user = userEvent.setup();
     const onImportHistory = vi.fn().mockReturnValue(2);
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
-    const { container } = render(
-      <HistoryView history={[]} onBack={vi.fn()} onResume={vi.fn()} onDelete={vi.fn()} onImportHistory={onImportHistory} />
-    );
+    const { container } = renderHistoryView({ onImportHistory });
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File([JSON.stringify([ENTRY])], 'backup.json', { type: 'application/json' });
 
     await user.upload(fileInput, file);
 
     expect(onImportHistory).toHaveBeenCalledWith([ENTRY]);
-    expect(alertSpy).toHaveBeenCalledWith('Restored 2 history entries.');
+    expect(await screen.findByText('Restored 2 history entries.')).toBeInTheDocument();
   });
 
-  it('shows an error alert for a file that is not valid JSON/an array', async () => {
+  it('shows an error toast for a file that is not valid JSON/an array', async () => {
     const user = userEvent.setup();
     const onImportHistory = vi.fn();
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
-    const { container } = render(
-      <HistoryView history={[]} onBack={vi.fn()} onResume={vi.fn()} onDelete={vi.fn()} onImportHistory={onImportHistory} />
-    );
+    const { container } = renderHistoryView({ onImportHistory });
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['not json'], 'backup.json', { type: 'application/json' });
 
     await user.upload(fileInput, file);
 
     expect(onImportHistory).not.toHaveBeenCalled();
-    expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining("doesn't look like"));
+    expect(await screen.findByText(/doesn't look like/)).toBeInTheDocument();
+  });
+
+  it('imports a backup file dropped onto the Import History button', async () => {
+    const onImportHistory = vi.fn().mockReturnValue(1);
+
+    renderHistoryView({ onImportHistory });
+    const importButton = screen.getByText('⬆ Import History');
+    const file = new File([JSON.stringify([ENTRY])], 'backup.json', { type: 'application/json' });
+
+    fireEvent.dragOver(importButton, { dataTransfer: { files: [file] } });
+    expect(screen.getByText('⬆ Import History — drop to import')).toBeInTheDocument();
+
+    fireEvent.drop(importButton, { dataTransfer: { files: [file] } });
+
+    await vi.waitFor(() => expect(onImportHistory).toHaveBeenCalledWith([ENTRY]));
+    expect(await screen.findByText('Restored 1 history entry.')).toBeInTheDocument();
+    expect(screen.queryByText('⬆ Import History — drop to import')).not.toBeInTheDocument();
+  });
+
+  it('clears the drag-over state when the drag leaves without dropping', () => {
+    renderHistoryView();
+    const importButton = screen.getByText('⬆ Import History');
+
+    fireEvent.dragOver(importButton, { dataTransfer: { files: [] } });
+    expect(screen.getByText('⬆ Import History — drop to import')).toBeInTheDocument();
+
+    fireEvent.dragLeave(importButton);
+    expect(screen.queryByText('⬆ Import History — drop to import')).not.toBeInTheDocument();
   });
 });
