@@ -5,6 +5,7 @@
 # a different process manager, swap the last line for whatever restarts your equivalent.
 set -e
 
+cd "$(dirname "$0")"
 git pull origin main
 npm ci
 npm run build
