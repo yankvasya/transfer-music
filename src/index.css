@@ -22,6 +22,10 @@
      per theme re-tints all of them at once, keeping each call site's own opacity intact. */
   --surface-tint-rgb: 255, 255, 255;
   --textarea-bg: rgba(0, 0, 0, 0.2);
+  --panel-bg: rgba(0, 0, 0, 0.15);
+  --code-inline-bg: rgba(0, 0, 0, 0.2);
+  --code-block-bg: rgba(0, 0, 0, 0.3);
+  --stat-card-bg: rgba(255, 255, 255, 0.02);
   color-scheme: dark;
 }
 
@@ -46,6 +50,10 @@
   --info-color: #2563eb;
   --surface-tint-rgb: 0, 0, 0;
   --textarea-bg: rgba(0, 0, 0, 0.04);
+  --panel-bg: rgba(0, 0, 0, 0.035);
+  --code-inline-bg: rgba(0, 0, 0, 0.05);
+  --code-block-bg: rgba(0, 0, 0, 0.06);
+  --stat-card-bg: rgba(0, 0, 0, 0.035);
   color-scheme: light;
 }
 
@@ -67,6 +75,10 @@
     --info-color: #2563eb;
     --surface-tint-rgb: 0, 0, 0;
     --textarea-bg: rgba(0, 0, 0, 0.04);
+    --panel-bg: rgba(0, 0, 0, 0.035);
+    --code-inline-bg: rgba(0, 0, 0, 0.05);
+    --code-block-bg: rgba(0, 0, 0, 0.06);
+    --stat-card-bg: rgba(0, 0, 0, 0.035);
     color-scheme: light;
   }
 }
@@ -566,7 +578,7 @@ textarea.form-control {
 }
 
 .info-row code {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--code-inline-bg);
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   margin-left: 0.5rem;
@@ -575,7 +587,7 @@ textarea.form-control {
 .redirect-uri-display {
   margin: 1.5rem 0;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--panel-bg);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
@@ -591,7 +603,7 @@ textarea.form-control {
 .copy-box code {
   font-family: monospace;
   font-size: 0.9rem;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--code-block-bg);
   padding: 0.5rem;
   border-radius: 4px;
   flex: 1;
@@ -660,7 +672,7 @@ textarea.form-control {
   padding: 1.5rem;
   border-radius: 12px;
   text-align: center;
-  background: rgba(var(--surface-tint-rgb), 0.02);
+  background: var(--stat-card-bg);
   border: 1px solid var(--glass-border);
 }
 
@@ -709,7 +721,7 @@ textarea.form-control {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 1.25rem;
@@ -939,7 +951,7 @@ textarea.form-control {
 }
 
 .playlist-pick-item {
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   gap: 0.75rem;
 }
@@ -1220,12 +1232,15 @@ textarea.form-control {
 }
 
 .landing-features {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 1.25rem;
 }
 
 .landing-feature-card {
+  flex: 1 1 230px;
+  max-width: 280px;
   padding: 1.75rem;
   animation: fadeIn 0.5s ease-out both;
 }
