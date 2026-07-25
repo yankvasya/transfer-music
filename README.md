@@ -88,11 +88,11 @@ The `api/` handlers use the Web Fetch API shape Vercel's runtime expects (`expor
 
 ### Auto-deploy on push to main
 
-`.github/workflows/deploy.yml` SSHes into the server and runs `deploy.sh` (pull latest, `npm ci`, rebuild, restart the API process) after every push to `main`. To use it:
+`.github/workflows/deploy.yml` SSHes into the server and runs `deploy.sh` (pull latest, `npm ci`, rebuild, copy the built frontend to the static site directory, restart the API process) after every push to `main`. To use it:
 
 1. On the server, clone this repo somewhere and get it running once manually (matches the path `deploy.sh`/the workflow expect — `~/projects/transfer-music` by default, edit the workflow's `script:` line if yours differs).
 2. In the GitHub repo's Settings → Secrets and variables → Actions, add three repository secrets: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY` (a private key whose matching public key is authorized on the server — dedicated deploy key recommended over reusing a personal one). This has to be done through GitHub's own UI/CLI, not by anyone else on your behalf.
-3. `deploy.sh` assumes the API process runs under `pm2` as `transfermusic-api` (matching the `start:api` example above) — edit its last line if you're using something else.
+3. `deploy.sh` copies `dist/` into `/var/snap/caddy/common/sites/transfermusic/` (this deployment's snap-installed Caddy) and assumes the API process runs under `pm2` as `transfermusic-api` (matching the `start:api` example above) — edit both if your static site path or process manager differ.
 
 ## License
 
