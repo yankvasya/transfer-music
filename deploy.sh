@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Non-interactive SSH sessions (like this one) don't source ~/.bashrc, so nvm's PATH
+# setup never runs and npm isn't found — load it explicitly and select the default version.
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use default
+
 cd ~/projects/transfer-music
 
 git pull origin main
