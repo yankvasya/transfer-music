@@ -1,4 +1,9 @@
 #!/bin/bash
+# git pull happens in the workflow's SSH command, before this script is invoked — NOT in
+# here. bash reads a script from disk as it executes it; if this script pulled its own
+# new content mid-run, later lines would be read from the wrong file offset once the pull
+# rewrote it underneath the running process (observed: it kept running the pre-pull
+# version of this exact file after a pull that should have fixed the very bug it hit).
 set -e
 
 # Non-interactive SSH sessions (like this one) don't source ~/.bashrc, so nvm's PATH
@@ -9,7 +14,6 @@ nvm use default
 
 cd ~/projects/transfer-music
 
-git pull origin main
 npm ci
 npm run build
 
