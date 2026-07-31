@@ -196,6 +196,43 @@ describe('ImporterProgress', () => {
     expect(calls.added.flat()).toEqual(['cand-1']);
   });
 
+  it('accepts the top-ranked candidate for every review track at once via Accept Top Pick for All', async () => {
+    const { connector, calls } = makeConnector({
+      searchTrack: async (_api, t) => ({
+        status: 'needs_review',
+        candidates: [
+          { externalId: `top-${t.title}`, title: t.title, artist: t.artist, url: 'https://example.com/top', confidence: 0.7 },
+          { externalId: `other-${t.title}`, title: t.title, artist: 'Someone Else', url: 'https://example.com/other', confidence: 0.6 },
+        ],
+      }),
+    });
+
+    render(
+      <ImporterProgress
+        tracks={[track('A - 1', 'A', '1'), track('A - 2', 'A', '2')]}
+        playlistName="My Playlist"
+        playlistDesc="desc"
+        isPublic={false}
+        apiRequest={noopApiRequest}
+        connector={connector}
+        onRestart={noop}
+        onBackToList={noop}
+        historyId="hist-accept-all"
+        onSaveProgress={noop}
+        onImportComplete={noop}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('Needs Review (2)')).toBeInTheDocument());
+
+    const user = (await import('@testing-library/user-event')).default.setup();
+    await user.click(screen.getByText('✓ Accept Top Pick for All (2)'));
+
+    await waitFor(() => expect(screen.getByText('Matched (2)')).toBeInTheDocument());
+    expect(screen.getByText('Needs Review (0)')).toBeInTheDocument();
+    expect(calls.added.flat().sort()).toEqual(['top-1', 'top-2']);
+  });
+
   it('stops immediately on quota_exceeded and saves resumable progress instead of completing', async () => {
     const { connector } = makeConnector({
       searchTrack: async () => ({ status: 'quota_exceeded' }),

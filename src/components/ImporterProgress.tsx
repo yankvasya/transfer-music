@@ -717,6 +717,23 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
     refreshHistorySummary();
   };
 
+  // Sequential (not parallel) on purpose — same rationale as handleRetryAll: reuses
+  // handleAcceptCandidate's per-track path one at a time instead of firing N concurrent
+  // playlist-add calls. Candidates are already sorted by confidence (selectMatch), so the
+  // first one is the closest match — this just saves clicking through each one by hand,
+  // trusting the user to skim the resulting Matched list afterward for anything off.
+  const [acceptAllRunning, setAcceptAllRunning] = useState(false);
+
+  const handleAcceptAllTopPicks = async () => {
+    if (acceptAllRunning) return;
+    setAcceptAllRunning(true);
+    const toAccept = [...reviewTracksRef.current];
+    for (const item of toAccept) {
+      await handleAcceptCandidate(item, item.candidates[0]);
+    }
+    setAcceptAllRunning(false);
+  };
+
   return (
     <div className="importer-progress-panel glass-panel">
       <h2>🚀 Importing Playlist</h2>
@@ -814,9 +831,16 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
           title="Needs Review"
           items={reviewTracks}
           emptyLabel="No uncertain matches..."
+          headerExtra={
+            playlistId && reviewTracks.length > 1 ? (
+              <button className="btn btn-sm btn-outline" onClick={handleAcceptAllTopPicks} disabled={acceptAllRunning}>
+                {acceptAllRunning ? '✓ Accepting...' : `✓ Accept Top Pick for All (${reviewTracks.length})`}
+              </button>
+            ) : undefined
+          }
           renderItem={(item, idx) => {
             const key = item.track.raw;
-            const busy = reviewStatus[key] === 'busy';
+            const busy = reviewStatus[key] === 'busy' || acceptAllRunning;
             return (
               <div key={idx} className="log-item info" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}>
                 <span className="log-item-raw">{item.track.raw}</span>
