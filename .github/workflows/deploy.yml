@@ -14,4 +14,4 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: bash ~/projects/transfer-music/deploy.sh
+          script: cd ~/projects/transfer-music && git pull origin main && bash deploy.sh
