@@ -39,11 +39,3 @@ Every service implements the same two interfaces — `DestinationConnector` (`cr
 3. Register the service in `src/serviceMeta.ts` and `src/connectors/index.ts`.
 4. Add tests alongside your connector and components.
 5. Run `npm run lint` and `npm test` to make sure everything passes.
-
-## Self-hosting
-
-The `api/` handlers use the Web Fetch API shape Vercel's runtime expects (`export default { fetch(request) }`) — `server.ts` is a small always-on Node process that runs those same, unmodified handlers outside of Vercel, translating between Node's `http` module and the Web `Request`/`Response` objects they expect.
-
-- `npm run build` produces the static frontend in `dist/`.
-- `npm run start:api` runs the API proxy on `process.env.PORT` (default `3001`), loading credentials from a `.env` file via `dotenv` — see `.env.example` for what's required. For a persistent process, something like `pm2 start "npx tsx server.ts" --name transfermusic-api` works too.
-- Point a reverse proxy (e.g. Caddy) at both: serve `dist/` as static files, and forward `/api/*` to `http://localhost:3001`.
