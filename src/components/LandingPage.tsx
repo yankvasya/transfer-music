@@ -2,6 +2,11 @@ import React from 'react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  // When true, render only the hero (no features/steps/footer). Used during the brief
+  // auth-hook boot so the pre-rendered hero hydrates in place and the same <LandingPage>
+  // component stays mounted when the full landing page replaces it — React then preserves
+  // the hero DOM nodes (the LCP element) instead of recreating them.
+  heroOnly?: boolean;
 }
 
 const FEATURES = [
@@ -33,7 +38,7 @@ const STEPS = [
   { n: '3', title: 'Let it run', description: 'Matching, batching, and retries happen automatically. Resume anytime from History.' },
 ];
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, heroOnly }) => {
   return (
     <div className="landing-page">
       <section className="landing-hero">
@@ -47,41 +52,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         </button>
       </section>
 
-      <section className="landing-features">
-        {FEATURES.map((f, i) => (
-          <div key={f.title} className="landing-feature-card glass-panel" style={{ animationDelay: `${i * 0.08}s` }}>
-            <div className="landing-feature-icon">{f.icon}</div>
-            <h3>{f.title}</h3>
-            <p className="description-text">{f.description}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="landing-steps glass-panel">
-        <h3>How it works</h3>
-        <div className="landing-steps-row">
-          {STEPS.map((s) => (
-            <div key={s.n} className="landing-step">
-              <div className="landing-step-number">{s.n}</div>
-              <div>
-                <h4>{s.title}</h4>
-                <p className="description-text">{s.description}</p>
+      {heroOnly ? null : (
+        <>
+          <section className="landing-features">
+            {FEATURES.map((f, i) => (
+              <div key={f.title} className="landing-feature-card glass-panel" style={{ animationDelay: `${i * 0.08}s` }}>
+                <div className="landing-feature-icon">{f.icon}</div>
+                <h3>{f.title}</h3>
+                <p className="description-text">{f.description}</p>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="form-actions center-align mt-4">
-          <button type="button" className="btn btn-primary btn-lg" onClick={onGetStarted}>
-            Get Started →
-          </button>
-        </div>
-      </section>
+            ))}
+          </section>
 
-      <footer className="landing-footer">
-        <a href="https://github.com/yankvasya/transfer-music" target="_blank" rel="noopener noreferrer">
-          View source on GitHub
-        </a>
-      </footer>
+          <section className="landing-steps glass-panel">
+            <h3>How it works</h3>
+            <div className="landing-steps-row">
+              {STEPS.map((s) => (
+                <div key={s.n} className="landing-step">
+                  <div className="landing-step-number">{s.n}</div>
+                  <div>
+                    <h4>{s.title}</h4>
+                    <p className="description-text">{s.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="form-actions center-align mt-4">
+              <button type="button" className="btn btn-primary btn-lg" onClick={onGetStarted}>
+                Get Started →
+              </button>
+            </div>
+          </section>
+
+          <footer className="landing-footer">
+            <a href="https://github.com/yankvasya/transfer-music" target="_blank" rel="noopener noreferrer">
+              View source on GitHub
+            </a>
+          </footer>
+        </>
+      )}
     </div>
   );
 };

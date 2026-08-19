@@ -190,6 +190,31 @@ function App() {
       };
     });
 
+  // During the brief auth-hook boot, render the SAME structure the full render uses —
+  // <Header> (empty, since no accounts are loaded yet) followed by <main> with the same
+  // <Routes> / <Route> / <LandingPage> (just heroOnly). This matches the markup
+  // pre-rendered in index.html so hydrateRoot attaches to the existing DOM, and when the
+  // hooks finish loading, React keeps the same <Header> / <main> / <Routes> / <LandingPage>
+  // nodes mounted — only the heroOnly prop flips off — so the hero DOM (the LCP element)
+  // is preserved and never recreated.
+  if (isBooting) {
+    return (
+      <div className="app-container">
+        <Header
+          accounts={[]}
+          onShowHistory={() => navigate('/history')}
+          onShowAbout={() => navigate('/about')}
+          onGoHome={handleGoHome}
+        />
+        <main>
+          <Routes>
+            <Route path="/" element={<LandingPage heroOnly onGetStarted={markLandingSeen} />} />
+          </Routes>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       <Header
@@ -199,107 +224,101 @@ function App() {
         onGoHome={handleGoHome}
       />
 
-      {isBooting ? (
-        <div className="glass-panel center-align">
-          <div className="spinner">Loading...</div>
-        </div>
-      ) : (
-        <main>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                hasSeenLanding ? (
-                  <SourceDestinationSelect onContinue={handleConnectorContinue} />
-                ) : (
-                  <LandingPage onGetStarted={markLandingSeen} />
-                )
-              }
-            />
+      <main>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              hasSeenLanding ? (
+                <SourceDestinationSelect onContinue={handleConnectorContinue} />
+              ) : (
+                <LandingPage onGetStarted={markLandingSeen} />
+              )
+            }
+          />
 
-            <Route path="/about" element={<LandingPage onGetStarted={() => navigate('/')} />} />
+          <Route path="/about" element={<LandingPage onGetStarted={() => navigate('/')} />} />
 
-            <Route
-              path="/import"
-              element={
-                <ImportRoute
-                  authByService={authByService}
-                  renderLoginUI={renderLoginUI}
-                  rawText={rawText}
-                  onNext={handleTracksNext}
-                />
-              }
-            />
+          <Route
+            path="/import"
+            element={
+              <ImportRoute
+                authByService={authByService}
+                renderLoginUI={renderLoginUI}
+                rawText={rawText}
+                onNext={handleTracksNext}
+              />
+            }
+          />
 
-            <Route
-              path="/export"
-              element={<ExportRoute authByService={authByService} renderLoginUI={renderLoginUI} />}
-            />
+          <Route
+            path="/export"
+            element={<ExportRoute authByService={authByService} renderLoginUI={renderLoginUI} />}
+          />
 
-            <Route
-              path="/bridge"
-              element={<BridgeRoute authByService={authByService} renderLoginUI={renderLoginUI} />}
-            />
+          <Route
+            path="/bridge"
+            element={<BridgeRoute authByService={authByService} renderLoginUI={renderLoginUI} />}
+          />
 
-            <Route
-              path="/bridge-queue"
-              element={
-                <BridgeQueueRoute
-                  authByService={authByService}
-                  renderLoginUI={renderLoginUI}
-                  onSaveProgress={saveProgress}
-                  onImportComplete={completeEntry}
-                />
-              }
-            />
+          <Route
+            path="/bridge-queue"
+            element={
+              <BridgeQueueRoute
+                authByService={authByService}
+                renderLoginUI={renderLoginUI}
+                onSaveProgress={saveProgress}
+                onImportComplete={completeEntry}
+              />
+            }
+          />
 
-            <Route
-              path="/playlist"
-              element={
-                <PlaylistRoute
-                  authByService={authByService}
-                  renderLoginUI={renderLoginUI}
-                  tracks={tracks}
-                  onStart={handlePlaylistStart}
-                />
-              }
-            />
+          <Route
+            path="/playlist"
+            element={
+              <PlaylistRoute
+                authByService={authByService}
+                renderLoginUI={renderLoginUI}
+                tracks={tracks}
+                onStart={handlePlaylistStart}
+              />
+            }
+          />
 
-            <Route
-              path="/progress/:id"
-              element={
-                <ProgressRoute
-                  activeImport={activeImport}
-                  tracks={tracks}
-                  playlistConfig={playlistConfig}
-                  history={history}
-                  authByService={authByService}
-                  renderLoginUI={renderLoginUI}
-                  onRestart={handleRestart}
-                  onBackToList={handleBackToList}
-                  onSaveProgress={saveProgress}
-                  onImportComplete={completeEntry}
-                />
-              }
-            />
+          <Route
+            path="/progress/:id"
+            element={
+              <ProgressRoute
+                activeImport={activeImport}
+                tracks={tracks}
+                playlistConfig={playlistConfig}
+                history={history}
+                authByService={authByService}
+                renderLoginUI={renderLoginUI}
+                onRestart={handleRestart}
+                onBackToList={handleBackToList}
+                onSaveProgress={saveProgress}
+                onImportComplete={completeEntry}
+              />
+            }
+          />
 
-            <Route
-              path="/history"
-              element={
-                <HistoryView
-                  history={history}
-                  onBack={() => navigate('/')}
-                  onResume={handleResumeImport}
-                  onDelete={removeEntry}
-                  onImportHistory={restoreHistory}
-                />
-              }
-            />
+          <Route
+            path="/history"
+            element={
+              <HistoryView
+                history={history}
+                onBack={() => navigate('/')}
+                onResume={handleResumeImport}
+                onDelete={removeEntry}
+                onImportHistory={restoreHistory}
+              />
+            }
+          />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      )}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
     </div>
   );
 }

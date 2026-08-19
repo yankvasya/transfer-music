@@ -61,6 +61,79 @@
       />
     </noscript>
 
+    <!-- Critical CSS: inlined so the pre-rendered landing hero paints immediately,
+         without waiting for the full stylesheet to download. The full stylesheet is
+         loaded async below and applies the same rules (plus everything else) once ready. -->
+    <style>
+      :root {
+        --bg-primary: #0b0f19;
+        --bg-secondary: #111827;
+        --accent-color: #1db954;
+        --accent-color-hover: #1ed760;
+        --text-primary: #f3f4f6;
+        --text-secondary: #9ca3af;
+        --border-color: rgba(255, 255, 255, 0.08);
+        --glass-bg: rgba(17, 24, 39, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.05);
+        --shadow-color: rgba(0, 0, 0, 0.4);
+        --font-heading: 'Outfit', sans-serif;
+        --font-body: 'Inter', sans-serif;
+        --danger-color: #ef4444;
+        --warning-color: #f59e0b;
+        --success-color: #10b981;
+        --info-color: #3b82f6;
+        --surface-tint-rgb: 255, 255, 255;
+        --textarea-bg: rgba(0, 0, 0, 0.2);
+        --panel-bg: rgba(0, 0, 0, 0.15);
+        --code-inline-bg: rgba(0, 0, 0, 0.2);
+        --code-block-bg: rgba(0, 0, 0, 0.3);
+        --stat-card-bg: rgba(255, 255, 255, 0.02);
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: var(--font-body);
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background-image:
+          radial-gradient(circle at 10% 20%, rgba(29, 185, 84, 0.05) 0%, transparent 40%),
+          radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
+        overflow-x: hidden;
+        line-height: 1.5;
+      }
+      #root { display: flex; flex-direction: column; min-height: 100vh; width: 100%; }
+      .app-container {
+        max-width: 1000px; width: 100%; margin: 0 auto; padding: 2rem 1.5rem;
+        flex: 1; display: flex; flex-direction: column; gap: 2rem;
+      }
+      h2, h3, h4 { font-family: var(--font-heading); margin-bottom: 1rem; font-weight: 600; }
+      h2 { font-size: 1.6rem; }
+      .landing-page { display: flex; flex-direction: column; gap: 3rem; }
+      .landing-hero { text-align: center; padding: 2rem 0 1rem; }
+      .landing-title {
+        font-size: 2.6rem; font-family: var(--font-heading); font-weight: 700;
+        letter-spacing: -0.02em;
+        background: linear-gradient(to right, var(--text-primary), var(--accent-color));
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        margin-bottom: 1rem;
+      }
+      .landing-subtitle {
+        font-size: 1.15rem; color: var(--text-secondary);
+        max-width: 640px; margin: 0 auto 2rem;
+      }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        padding: 0.8rem 1.8rem; font-family: var(--font-body); font-size: 0.95rem;
+        font-weight: 600; border-radius: 50px; border: none; cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-decoration: none;
+      }
+      .btn-primary { background: var(--text-primary); color: var(--bg-primary); }
+      .btn-lg { padding: 1rem 2.5rem; font-size: 1.05rem; }
+    </style>
+
     <!-- Structured data -->
 
     <script type="application/ld+json">
@@ -85,7 +158,11 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- The landing page is pre-rendered here so the hero content (the LCP element)
+         paints immediately, before the JS bundle downloads and React hydrates over it.
+         React replaces this with the same markup on first visit, or with the picker
+         for returning users. -->
+    <div id="root"><div class="app-container"><header class="app-header"><button type="button" class="header-brand"><svg class="logo-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M8 12H24" stroke="var(--accent-color)" stroke-width="3" stroke-linecap="round"></path><path d="M19 7L24 12L19 17" stroke="var(--accent-color)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path><path d="M24 20H8" stroke="var(--accent-color)" stroke-width="3" stroke-linecap="round"></path><path d="M13 15L8 20L13 25" stroke="var(--accent-color)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="logo-text"><h1>TransferMusic</h1><p class="subtitle">Move your tracklists between music services</p></div></button><div class="header-actions"><button type="button" class="btn btn-sm btn-outline" title="Theme: matching your system" aria-label="Theme: matching your system">🖥️</button><button class="btn btn-sm btn-outline">About</button><button class="btn btn-sm btn-outline">History</button></div></header><main><div class="landing-page"><section class="landing-hero"><h2 class="landing-title">Move your music between services</h2><p class="landing-subtitle">Paste a tracklist and turn it into a playlist, export a playlist back to text, or bridge two services directly — without re-typing a single track.</p><button type="button" class="btn btn-primary btn-lg">Get Started →</button></section></div></main></div><div class="toast-container" role="status" aria-live="polite"></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
