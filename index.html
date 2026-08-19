@@ -2,9 +2,87 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>transfer-music</title>
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0b0f19" />
+
+    <!-- Primary Meta Tags -->
+    <title>TransferMusic — Move playlists between Spotify, YouTube, Yandex Music & Deezer</title>
+    <meta
+      name="description"
+      content="Move playlists between Spotify, YouTube, Yandex Music, and Deezer. Paste a tracklist to import, export any playlist to text, or bridge two services directly — with smart matching and resumable transfers."
+    />
+    <link rel="canonical" href="https://transfermusic.yankvasya.dev/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://transfermusic.yankvasya.dev/" />
+    <meta property="og:title" content="TransferMusic — Move playlists between music services" />
+    <meta
+      property="og:description"
+      content="Move playlists between Spotify, YouTube, Yandex Music, and Deezer. Paste a tracklist to import, export any playlist to text, or bridge two services directly."
+    />
+    <meta property="og:site_name" content="TransferMusic" />
+    <meta property="og:image" content="https://transfermusic.yankvasya.dev/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="TransferMusic — move playlists between music services" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://transfermusic.yankvasya.dev/" />
+    <meta name="twitter:title" content="TransferMusic — Move playlists between music services" />
+    <meta
+      name="twitter:description"
+      content="Move playlists between Spotify, YouTube, Yandex Music, and Deezer. Paste a tracklist to import, export any playlist to text, or bridge two services directly."
+    />
+    <meta name="twitter:image" content="https://transfermusic.yankvasya.dev/og-image.png" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Fonts: preconnect + async stylesheet so the CSS never blocks first paint.
+         The media="print" trick makes the browser fetch it without blocking render,
+         then onload swaps it to "all" so it applies immediately once ready. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
+
+    <!-- Structured data -->
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "TransferMusic",
+        "url": "https://transfermusic.yankvasya.dev/",
+        "description": "Move playlists between Spotify, YouTube, Yandex Music, and Deezer. Paste a tracklist to import, export any playlist to text, or bridge two services directly.",
+        "applicationCategory": "UtilityApplication",
+        "operatingSystem": "Any",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "TransferMusic"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
