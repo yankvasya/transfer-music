@@ -13,6 +13,11 @@ function applyTheme(theme: Theme) {
   } else {
     document.documentElement.setAttribute('data-theme', theme);
   }
+  // Keep the browser chrome (mobile URL bar, PWA title bar) in sync with the theme.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', theme === 'light' ? '#f1f2f5' : '#0b0f19');
+  }
 }
 
 export function useTheme(): [Theme, (theme: Theme) => void] {
