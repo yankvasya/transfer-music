@@ -9,11 +9,12 @@ import type { ServiceAuth } from '../serviceMeta';
 import type { HistoryEntry } from '../hooks/useHistory';
 import type { ResumeData, ServiceId } from '../types';
 import type { ParsedTrack } from '../utils/parser';
+import type { PlaylistSetupOptions } from './PlaylistSetup';
 
 interface ProgressRouteProps {
   activeImport: { id: string; service: ServiceId; resumeFrom?: ResumeData } | null;
   tracks: ParsedTrack[];
-  playlistConfig: { name: string; description: string; isPublic: boolean } | null;
+  playlistConfig: PlaylistSetupOptions | null;
   history: HistoryEntry[];
   authByService: Record<ServiceId, ServiceAuth>;
   renderLoginUI: (service: ServiceId) => ReactNode;
@@ -68,6 +69,8 @@ export const ProgressRoute: React.FC<ProgressRouteProps> = ({
         playlistName={playlistConfig.name}
         playlistDesc={playlistConfig.description}
         isPublic={playlistConfig.isPublic}
+        existingPlaylistId={playlistConfig.existingPlaylistId}
+        existingPlaylistUrl={playlistConfig.existingPlaylistUrl}
         apiRequest={auth.apiRequest}
         connector={DESTINATIONS[service]}
         onRestart={onRestart}

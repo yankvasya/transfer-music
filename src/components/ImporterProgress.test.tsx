@@ -414,4 +414,41 @@ describe('ImporterProgress', () => {
     expect(resumeData.pendingUris.sort()).toEqual(['id-1', 'id-2']);
     expect(resumeData.playlistId).toBe('pl1');
   });
+
+  it('adopts an existing playlist instead of creating one when existingPlaylistId is provided', async () => {
+    const { connector, calls } = makeConnector();
+    const onSaveProgress = vi.fn();
+    const onImportComplete = vi.fn();
+
+    render(
+      <ImporterProgress
+        tracks={[track('A - 1', 'A', '1'), track('A - 2', 'A', '2')]}
+        playlistName="My Night Mix"
+        playlistDesc=""
+        isPublic={false}
+        existingPlaylistId="existing-pl"
+        existingPlaylistUrl="https://example.com/existing-pl"
+        apiRequest={noopApiRequest}
+        connector={connector}
+        onRestart={noop}
+        onBackToList={noop}
+        historyId="hist-existing"
+        onSaveProgress={onSaveProgress}
+        onImportComplete={onImportComplete}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('Playlist import completed successfully!')).toBeInTheDocument());
+
+    expect(calls.created).toBe(0); // no createPlaylist call
+    expect(calls.added.flat().sort()).toEqual(['id-1', 'id-2']);
+
+    expect(onImportComplete).toHaveBeenCalledWith('hist-existing', expect.objectContaining({ name: 'My Night Mix', url: 'https://example.com/existing-pl' }));
+
+    // The initial checkpoint must record the existing playlist id/url so resume targets the same playlist.
+    expect(onSaveProgress).toHaveBeenCalled();
+    const [, , resumeData] = onSaveProgress.mock.calls[0];
+    expect(resumeData.playlistId).toBe('existing-pl');
+    expect(resumeData.playlistUrl).toBe('https://example.com/existing-pl');
+  });
 });

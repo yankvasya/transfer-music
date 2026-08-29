@@ -25,6 +25,7 @@ import { SERVICE_META } from './serviceMeta';
 import type { ServiceAuth } from './serviceMeta';
 import type { ParsedTrack } from './utils/parser';
 import type { ResumeData, ServiceId } from './types';
+import type { PlaylistSetupOptions } from './components/PlaylistSetup';
 
 const ALL_SERVICES: ServiceId[] = ['spotify', 'youtube', 'yandex-music', 'deezer'];
 
@@ -115,11 +116,7 @@ function App() {
   // Importer data state (in-memory; /progress/:id survives a reload via History instead)
   const [rawText, setRawText] = useState<string>('');
   const [tracks, setTracks] = useState<ParsedTrack[]>([]);
-  const [playlistConfig, setPlaylistConfig] = useState<{
-    name: string;
-    description: string;
-    isPublic: boolean;
-  } | null>(null);
+  const [playlistConfig, setPlaylistConfig] = useState<PlaylistSetupOptions | null>(null);
   // Identifies the history entry a running import checkpoints into, and (when resuming) what to pick up from.
   const [activeImport, setActiveImport] = useState<{ id: string; service: ServiceId; resumeFrom?: ResumeData } | null>(
     null
@@ -131,9 +128,9 @@ function App() {
     navigate(`/playlist?type=${service}`);
   };
 
-  const handlePlaylistStart = (name: string, description: string, isPublic: boolean, service: ServiceId) => {
+  const handlePlaylistStart = (options: PlaylistSetupOptions, service: ServiceId) => {
     const id = crypto.randomUUID();
-    setPlaylistConfig({ name, description, isPublic });
+    setPlaylistConfig(options);
     setActiveImport({ id, service });
     navigate(`/progress/${id}`);
   };
@@ -166,6 +163,7 @@ function App() {
     if (!entry.resumeData) return;
     setTracks(entry.resumeData.tracks);
     setPlaylistConfig({
+      mode: 'create',
       name: entry.name,
       description: entry.resumeData.playlistDesc,
       isPublic: entry.resumeData.isPublic,

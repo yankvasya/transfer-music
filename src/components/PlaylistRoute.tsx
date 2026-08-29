@@ -6,6 +6,7 @@ import { RequireAuth } from './RequireAuth';
 import { SOURCES } from '../connectors';
 import { SERVICE_META } from '../serviceMeta';
 import type { ServiceAuth } from '../serviceMeta';
+import type { PlaylistSetupOptions } from './PlaylistSetup';
 import { resolveService } from '../utils/resolveService';
 import type { ServiceId } from '../types';
 import type { ParsedTrack } from '../utils/parser';
@@ -14,7 +15,7 @@ interface PlaylistRouteProps {
   authByService: Record<ServiceId, ServiceAuth>;
   renderLoginUI: (service: ServiceId) => ReactNode;
   tracks: ParsedTrack[];
-  onStart: (name: string, description: string, isPublic: boolean, service: ServiceId) => void;
+  onStart: (options: PlaylistSetupOptions, service: ServiceId) => void;
 }
 
 export const PlaylistRoute: React.FC<PlaylistRouteProps> = ({ authByService, renderLoginUI, tracks, onStart }) => {
@@ -36,7 +37,7 @@ export const PlaylistRoute: React.FC<PlaylistRouteProps> = ({ authByService, ren
         source={SOURCES[service]}
         currentUserId={auth.user?.id ?? null}
         onBack={() => navigate(`/import?type=${service}`)}
-        onStart={(name, description, isPublic) => onStart(name, description, isPublic, service)}
+        onStart={(options) => onStart(options, service)}
       />
     </RequireAuth>
   );
