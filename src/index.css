@@ -347,6 +347,55 @@ textarea.form-control {
   cursor: pointer;
 }
 
+.form-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.mode-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1.1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0;
+  background: rgba(var(--surface-tint-rgb), 0.03);
+  transition: all 0.2s ease;
+}
+
+.mode-option:hover {
+  border-color: var(--accent-color);
+}
+
+.mode-option.selected {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.15);
+}
+
+.mode-option input {
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+.mode-option:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

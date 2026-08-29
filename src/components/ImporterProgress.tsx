@@ -20,6 +20,10 @@ interface ImporterProgressProps {
   playlistName: string;
   playlistDesc: string;
   isPublic: boolean;
+  // When set (import into an existing playlist), startImport adopts this id/url directly
+  // instead of calling connector.createPlaylist.
+  existingPlaylistId?: string;
+  existingPlaylistUrl?: string;
   apiRequest: ApiRequest;
   connector: DestinationConnector;
   onRestart: () => void;
@@ -83,6 +87,8 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
   playlistName,
   playlistDesc,
   isPublic,
+  existingPlaylistId,
+  existingPlaylistUrl,
   apiRequest,
   connector,
   onRestart,
@@ -241,16 +247,22 @@ export const ImporterProgress: React.FC<ImporterProgressProps> = ({
         } else {
           // React can render a duplicate, short-lived instance of this component for the
           // same historyId in some navigation scenarios; claiming historyId synchronously
-          // here (before any await) ensures only one instance ever actually creates a
+          // here (before any await) ensures only one instance actually creates/uses a
           // playlist, regardless of how many instances briefly coexist.
           if (playlistCreationClaimed.has(historyId)) return;
           playlistCreationClaimed.add(historyId);
 
-          setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
-          const playlistData = await connector.createPlaylist(apiRequest, playlistName, playlistDesc, isPublic);
-          if (!active || isCancelledRef.current) return;
-          playlistId = playlistData.id;
-          url = playlistData.url;
+          if (existingPlaylistId && existingPlaylistUrl) {
+            // Import into an already-existing playlist — no create call, just adopt it.
+            playlistId = existingPlaylistId;
+            url = existingPlaylistUrl;
+          } else {
+            setCurrentActionMsg(`Creating playlist: "${playlistName}"...`);
+            const playlistData = await connector.createPlaylist(apiRequest, playlistName, playlistDesc, isPublic);
+            if (!active || isCancelledRef.current) return;
+            playlistId = playlistData.id;
+            url = playlistData.url;
+          }
           playlistIdRef.current = playlistId;
           playlistUrlRef.current = url;
           setPlaylistUrl(url);
